@@ -78,6 +78,9 @@ async function loadPointLayer(def) {
       fillOpacity: 0.85,
     });
     marker.bindPopup(pointPopupHtml(row));
+    // Se guardan para poder indexar el buscador (código + dirección) más adelante.
+    marker.tableroRow = row;
+    marker.tableroDireccion = direccion(row);
     markers.push(marker);
   }
   return L.layerGroup(markers);
@@ -138,6 +141,19 @@ export async function buildMap(allowedIds) {
     }
   }
 
+  // Índice para el buscador: solo tableros de capas que el usuario actual puede ver
+  // (evita que se pueda buscar/ubicar un tablero al que no se tiene acceso).
+  function getSearchableTableros() {
+    const results = [];
+    for (const { def, layer } of loaded) {
+      if (def.kind !== 'point' || !registered.has(def.id)) continue;
+      layer.eachLayer((marker) => {
+        results.push({ marker, layerGroup: layer, def, row: marker.tableroRow, direccion: marker.tableroDireccion });
+      });
+    }
+    return results;
+  }
+
   applyVisibility(allowedIds);
-  return { map, applyVisibility };
+  return { map, applyVisibility, getSearchableTableros };
 }

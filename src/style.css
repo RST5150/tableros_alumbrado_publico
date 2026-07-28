@@ -160,3 +160,106 @@ body {
 .polygon-label::before {
   display: none;
 }
+
+/* Buscador estilo "Buscar en el mapa" de Google My Maps: caja blanca con lupa y un
+   desplegable de resultados debajo, arriba a la izquierda del mapa. */
+.map-search {
+  width: 280px;
+  max-width: calc(100vw - 90px);
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  border: none !important;
+  background: #fff;
+  font: 14px/1.3 system-ui, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+
+.map-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 40px;
+  background: #fff;
+}
+
+.map-search-icon {
+  display: flex;
+  color: #5f6368;
+  flex: 0 0 auto;
+}
+
+.map-search-box input {
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  font: inherit;
+  color: #1f2328;
+  min-width: 0;
+  background: transparent;
+}
+
+.map-search-box input::placeholder {
+  color: #80868b;
+}
+
+.map-search-clear {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.map-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid #e5e7eb;
+}
+
+.map-search-results li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.map-search-results li:hover,
+.map-search-results li.active {
+  background: #f1f3f4;
+}
+
+.map-search-result-title {
+  font-weight: 600;
+  color: #1f2328;
+}
+
+.map-search-result-subtitle {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-search,
+  .map-search-box {
+    background: #2a2b31;
+  }
+  .map-search-box input,
+  .map-search-result-title {
+    color: #e5e7eb;
+  }
+  .map-search-results {
+    border-top-color: #3a3b42;
+  }
+  .map-search-results li:hover,
+  .map-search-results li.active {
+    background: #3a3b42;
+  }
+}
