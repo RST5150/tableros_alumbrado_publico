@@ -13,10 +13,12 @@ export const CONFIG = {
   // Rutas SIN "/" inicial a propósito: así se resuelven relativas a la página actual y
   // funcionan tanto en local (localhost:5173/) como publicadas bajo un subpath de GitHub
   // Pages (rst5150.github.io/tableros_alumbrado_publico/). Con "/" inicial se rompían en Pages.
+  // `defaultVisible: false` = la capa queda en el listado de capas (se puede tildar a mano)
+  // pero no se muestra sola al entrar al mapa.
   polygonLayers: [
     { id: 'zonas', label: 'Zonas', file: 'data/zonas.geojson', color: '#2563eb' },
-    { id: 'subzonas', label: 'Subzonas', file: 'data/subzonas.geojson', color: '#16a34a' },
-    { id: 'sectores', label: 'Sectores', file: 'data/sectores.geojson', color: '#ea580c' },
+    { id: 'subzonas', label: 'Subzonas', file: 'data/subzonas.geojson', color: '#16a34a', defaultVisible: false },
+    { id: 'sectores', label: 'Sectores', file: 'data/sectores.geojson', color: '#ea580c', defaultVisible: false },
   ],
 
   // Capas de puntos: se leen en vivo desde hojas de Google Sheets publicadas como CSV

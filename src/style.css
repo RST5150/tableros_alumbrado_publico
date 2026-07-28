@@ -139,3 +139,24 @@ body {
   background: #fef9c3;
   color: #854d0e;
 }
+
+/* Etiqueta permanente con el número de zona/subzona/sector: texto simple, sin la
+   caja/flecha por defecto del tooltip de Leaflet, para que no tape el mapa. */
+.polygon-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-weight: 700;
+  font-size: 12px;
+  color: #1f2328;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 3px #fff,
+    0 0 3px #fff;
+  pointer-events: none;
+}
+
+.polygon-label::before {
+  display: none;
+}

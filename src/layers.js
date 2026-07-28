@@ -51,7 +51,9 @@ async function loadPolygonLayer(def) {
     }),
     onEachFeature: (feature, layer) => {
       const name = feature.properties?.name;
-      if (name) layer.bindTooltip(name, { sticky: true });
+      // Permanent (no sólo al pasar el mouse): muestra el número de zona/subzona/sector
+      // siempre que esa capa esté prendida.
+      if (name) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'polygon-label' });
     },
   });
 }
@@ -117,16 +119,21 @@ export async function buildMap(allowedIds) {
   const loaded = entries.filter(Boolean);
   const control = L.control.layers(null, null, { collapsed: false }).addTo(map);
 
+  // Capas que ya se agregaron al selector (aunque no estén tildadas en el mapa). Sirve para
+  // distinguir "recién habilitada -> aplicar defaultVisible" de "el usuario la destildó a mano".
+  const registered = new Set();
+
   function applyVisibility(ids) {
     for (const { def, layer } of loaded) {
       const isAllowed = ids.has(def.id);
-      const onMap = map.hasLayer(layer);
-      if (isAllowed && !onMap) {
-        layer.addTo(map);
+      if (isAllowed && !registered.has(def.id)) {
         control.addOverlay(layer, def.label);
-      } else if (!isAllowed && onMap) {
+        registered.add(def.id);
+        if (def.defaultVisible !== false) layer.addTo(map);
+      } else if (!isAllowed && registered.has(def.id)) {
         map.removeLayer(layer);
         control.removeLayer(layer);
+        registered.delete(def.id);
       }
     }
   }
