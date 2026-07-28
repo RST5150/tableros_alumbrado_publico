@@ -120,7 +120,10 @@ export async function buildMap(allowedIds) {
   );
 
   const loaded = entries.filter(Boolean);
-  const control = L.control.layers(null, null, { collapsed: false }).addTo(map);
+
+  // Dos cuadros separados: uno para Zonas/Subzonas/Sectores y otro para los Tableros
+  // (el toggle de números, más abajo, queda apilado entre los dos).
+  const polygonControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
 
   // Capas que ya se agregaron al selector (aunque no estén tildadas en el mapa). Sirve para
   // distinguir "recién habilitada -> aplicar defaultVisible" de "el usuario la destildó a mano".
@@ -130,16 +133,50 @@ export async function buildMap(allowedIds) {
     for (const { def, layer } of loaded) {
       const isAllowed = ids.has(def.id);
       if (isAllowed && !registered.has(def.id)) {
-        control.addOverlay(layer, def.label);
+        controlFor(def).addOverlay(layer, def.label);
         registered.add(def.id);
         if (def.defaultVisible !== false) layer.addTo(map);
       } else if (!isAllowed && registered.has(def.id)) {
         map.removeLayer(layer);
-        control.removeLayer(layer);
+        controlFor(def).removeLayer(layer);
         registered.delete(def.id);
       }
     }
+    applyLabelsVisibility();
   }
+
+  // Toggle de "Mostrar números": abre/cierra el tooltip permanente de cada polígono sin
+  // afectar si la capa en sí está prendida o apagada.
+  let labelsVisible = true;
+  function applyLabelsVisibility() {
+    for (const { def, layer } of loaded) {
+      if (def.kind !== 'polygon') continue;
+      layer.eachLayer((sub) => (labelsVisible ? sub.openTooltip() : sub.closeTooltip()));
+    }
+  }
+
+  const LabelsToggle = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const container = L.DomUtil.create('div', 'labels-toggle leaflet-bar');
+      container.innerHTML = `
+        <label>
+          <input type="checkbox" checked />
+          Mostrar números
+        </label>
+      `;
+      L.DomEvent.disableClickPropagation(container);
+      container.querySelector('input').addEventListener('change', (e) => {
+        labelsVisible = e.target.checked;
+        applyLabelsVisibility();
+      });
+      return container;
+    },
+  });
+  new LabelsToggle().addTo(map);
+
+  const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
+  const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
 
   // Índice para el buscador: solo tableros de capas que el usuario actual puede ver
   // (evita que se pueda buscar/ubicar un tablero al que no se tiene acceso).
