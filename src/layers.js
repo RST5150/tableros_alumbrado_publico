@@ -68,6 +68,7 @@ async function loadPointLayer(def) {
     const lon = parseFloat(row.Lon);
     if (Number.isNaN(lat) || Number.isNaN(lon)) continue;
     const marker = L.circleMarker([lat, lon], {
+      pane: 'tableros',
       radius: 7,
       color: def.color,
       weight: 2,
@@ -85,6 +86,12 @@ async function loadPointLayer(def) {
 // la visibilidad cuando cambian los permisos (login/logout).
 export async function buildMap(allowedIds) {
   const map = L.map('map').setView(CONFIG.mapCenter, CONFIG.mapZoom);
+
+  // Pane propio con z-index por encima del de polígonos (Zonas/Subzonas/Sectores), para que
+  // los tableros siempre se vean arriba sin importar el orden en que se activen las capas.
+  map.createPane('tableros');
+  map.getPane('tableros').style.zIndex = 650;
+
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 20,
