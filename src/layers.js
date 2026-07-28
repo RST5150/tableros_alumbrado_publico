@@ -97,10 +97,27 @@ export async function buildMap(allowedIds) {
   map.createPane('tableros');
   map.getPane('tableros').style.zIndex = 650;
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 20,
-  }).addTo(map);
+  // Solo mapas base gratuitos basados en datos de OpenStreetMap (sin API key).
+  const baseLayers = {
+    Callejero: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 20,
+    }),
+    Oscuro: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+    }),
+    Topográfico: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution:
+        'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+      maxZoom: 20,
+      maxNativeZoom: 17,
+    }),
+  };
+  baseLayers.Callejero.addTo(map);
+  L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
 
   const allDefs = [
     ...CONFIG.polygonLayers.map((d) => ({ ...d, kind: 'polygon' })),
@@ -135,17 +152,20 @@ export async function buildMap(allowedIds) {
       if (isAllowed && !registered.has(def.id)) {
         controlFor(def).addOverlay(layer, def.label);
         registered.add(def.id);
+        if (def.kind === 'point') visiblePointLayers += 1;
         if (def.defaultVisible !== false) layer.addTo(map);
       } else if (!isAllowed && registered.has(def.id)) {
         map.removeLayer(layer);
         controlFor(def).removeLayer(layer);
         registered.delete(def.id);
+        if (def.kind === 'point') visiblePointLayers -= 1;
       }
     }
     applyLabelsVisibility();
+    updateTablerosControlVisibility();
   }
 
-  // Toggle de "Mostrar números": abre/cierra el tooltip permanente de cada polígono sin
+  // Toggle de "Mostrar referencias": abre/cierra el tooltip permanente de cada polígono sin
   // afectar si la capa en sí está prendida o apagada.
   let labelsVisible = true;
   function applyLabelsVisibility() {
@@ -162,7 +182,7 @@ export async function buildMap(allowedIds) {
       container.innerHTML = `
         <label>
           <input type="checkbox" checked />
-          Mostrar números
+          Mostrar referencias
         </label>
       `;
       L.DomEvent.disableClickPropagation(container);
@@ -177,6 +197,14 @@ export async function buildMap(allowedIds) {
 
   const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
   const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
+
+  // El cuadro de Tableros no debe verse cuando no hay ninguna capa de tableros habilitada
+  // (usuario sin loguear, o logueado sin permiso a ninguna zona de tableros).
+  let visiblePointLayers = 0;
+  function updateTablerosControlVisibility() {
+    tablerosControl.getContainer().style.display = visiblePointLayers > 0 ? '' : 'none';
+  }
+  updateTablerosControlVisibility();
 
   // Índice para el buscador: solo tableros de capas que el usuario actual puede ver
   // (evita que se pueda buscar/ubicar un tablero al que no se tiene acceso).

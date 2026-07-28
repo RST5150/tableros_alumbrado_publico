@@ -70,7 +70,12 @@ export function initSearch(map, getSearchableTableros) {
       function selectMatch(match) {
         if (!match) return;
         if (!map.hasLayer(match.layerGroup)) match.layerGroup.addTo(map);
-        map.flyTo(match.marker.getLatLng(), Math.max(map.getZoom(), 18));
+        const targetZoom = Math.max(map.getZoom(), 18);
+        // Duración corta y fija: con flyTo por defecto el "vuelo" puede sentirse lento en
+        // distancias largas. Se abre el popup apenas termina de moverse (y también de
+        // inmediato, por si el destino coincide con la vista actual y "moveend" no dispara).
+        map.flyTo(match.marker.getLatLng(), targetZoom, { duration: 0.6 });
+        map.once('moveend', () => match.marker.openPopup());
         match.marker.openPopup();
         closeResults();
         input.value = resultLabel(match).title;
