@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# KML/KMZ exportados y CSV generados por scripts/kml-convert.mjs (no van al repo)
+scripts/input/*.kml
+scripts/input/*.kmz
+scripts/output/
+
+# Datos reales de tableros (direcciones, etc.) mientras el repo sea público y no estén
+# migrados a Google Sheets. Quedan en disco para dev local pero no se suben.
+public/local-data/tableros_zona*.csv
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,141 @@
+:root {
+  --text: #1f2328;
+  --bg: #ffffff;
+  --border: #d7dae0;
+  --accent: #2563eb;
+  --topbar-bg: #0f172a;
+  --topbar-text: #f8fafc;
+
+  font: 16px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e5e7eb;
+    --bg: #16171d;
+    --border: #2e303a;
+    --accent: #60a5fa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+}
+
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--topbar-bg);
+  color: var(--topbar-text);
+  flex: 0 0 auto;
+}
+
+#topbar h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+#auth-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+#auth-area .user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+}
+
+#auth-area .user-chip img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+#auth-area button.signout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#map {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tablero-popup h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.tablero-popup p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.tablero-popup dl {
+  margin: 0;
+  font-size: 13px;
+}
+
+.tablero-popup dt {
+  font-weight: 600;
+  float: left;
+  clear: left;
+  margin-right: 6px;
+}
+
+.tablero-popup dd {
+  margin: 0 0 2px;
+}
+
+.estado-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.estado-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.estado-alerta {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.estado-pendiente {
+  background: #fef9c3;
+  color: #854d0e;
+}

@@ -1,0 +1,5 @@
+Email,Capas_permitidas
+supervisor.zona1@example.com,tableros_zona1
+supervisor.zona2@example.com,tableros_zona2
+supervisor.zona3@example.com,tableros_zona3
+jefe.fiscalizacion@example.com,*
