@@ -49,7 +49,10 @@ export function initAuth(onChange) {
     }
     const container = document.createElement('div');
     authArea.appendChild(container);
-    window.google.accounts.id.renderButton(container, { theme: 'filled_blue', size: 'medium' });
+    // 'filled_black' en vez de 'filled_blue': el botón de Google siempre lleva un fondo propio
+    // (no lo permite sacar del todo), pero en negro se integra mucho mejor con la barra oscura
+    // que en blanco.
+    window.google.accounts.id.renderButton(container, { theme: 'filled_black', size: 'medium' });
   }
 
   function renderSignedIn(user) {

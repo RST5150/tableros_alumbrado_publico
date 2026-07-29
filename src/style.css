@@ -161,9 +161,11 @@ body {
   display: none;
 }
 
-/* Toggle "Mostrar números", entre el cuadro de Zonas/Subzonas/Sectores y el de Tableros. */
+/* Toggle "Mostrar referencias", entre el cuadro de Zonas/Subzonas/Sectores y el de Tableros.
+   Fondo oscuro (igual que la barra superior) y texto blanco a propósito, para diferenciarlo
+   de los cuadros de capas (que quedan con el blanco por defecto de Leaflet). */
 .labels-toggle {
-  background: #fff;
+  background: var(--topbar-bg);
   border-radius: 5px !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
   padding: 6px 10px;
@@ -174,18 +176,9 @@ body {
   align-items: center;
   gap: 6px;
   font: 13px system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #1f2328;
+  color: #fff;
   white-space: nowrap;
   cursor: pointer;
-}
-
-@media (prefers-color-scheme: dark) {
-  .labels-toggle {
-    background: #2a2b31;
-  }
-  .labels-toggle label {
-    color: #e5e7eb;
-  }
 }
 
 /* Buscador estilo "Buscar en el mapa" de Google My Maps: caja blanca con lupa y un
