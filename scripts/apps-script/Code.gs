@@ -43,9 +43,17 @@ function doPost(e) {
   }
 }
 
-// Sube el plano a una carpeta de Drive (se crea sola la primera vez) y devuelve el link para
-// guardar en la columna "Plano". El archivo queda visible para "cualquiera con el link" —
-// si no, el link no serviría para nada al abrirlo desde el popup del mapa.
+// Carpeta raíz de Drive de cada zona (ya existentes, con subcarpetas "Sector XX" adentro).
+var ZONA_FOLDER_IDS = {
+  tableros_zona1: '12QHDt35ZtjMF2jvsSZNxMvaZqapBC5pw',
+  tableros_zona2: '1o9rgtGOAUwvAcqyaTeCuJvXx7DkRfXb7',
+  tableros_zona3: '1rFfcV9aPdpVyeC73NgEtm2O_HfjMfnOP',
+};
+
+// Sube el plano a Drive, dentro de la subcarpeta "Sector XX" que corresponda según el código
+// del tablero, y devuelve el link para guardar en la columna "Plano". El archivo queda visible
+// para "cualquiera con el link" — si no, el link no serviría para nada al abrirlo desde el
+// popup del mapa.
 function uploadPlano(body) {
   if (!body.fileData || !body.fileName) throw new Error('Falta el archivo a subir.');
 
@@ -55,15 +63,25 @@ function uploadPlano(body) {
 
   var safeName = [body.zona, body.nombre, body.fileName].filter(Boolean).join('_');
   var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', safeName);
-  var file = getOrCreatePlanosFolder().createFile(blob);
+  var file = getSectorFolder(body.zona, body.nombre).createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
 }
 
-function getOrCreatePlanosFolder() {
-  var name = 'Planos - Mapa de Tableros';
-  var it = DriveApp.getFoldersByName(name);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+// El código de tablero tiene el formato XYYXX: X = zona, YY = sector (siempre 2 dígitos),
+// XX = número dentro del sector. Ej: "16309" -> sector "63".
+function getSectorFolder(zona, nombre) {
+  var rootId = ZONA_FOLDER_IDS[zona];
+  if (!rootId) throw new Error('No hay carpeta de Drive configurada para "' + zona + '".');
+
+  var codigo = String(nombre || '').trim();
+  if (codigo.length < 3) throw new Error('No se pudo determinar el sector del código "' + codigo + '".');
+  var sector = codigo.substring(1, 3);
+
+  var root = DriveApp.getFolderById(rootId);
+  var folderName = 'Sector ' + sector;
+  var it = root.getFoldersByName(folderName);
+  return it.hasNext() ? it.next() : root.createFolder(folderName);
 }
 
 // Valida el JWT de Google Sign-In contra los servidores de Google (no confía en el email que

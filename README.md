@@ -140,12 +140,17 @@ implementaciones → editar (lápiz) → Nueva versión** para que el cambio ten
 cambia).
 
 **Subir planos desde el formulario**: además del campo de link, el formulario tiene un
-selector de archivo (PDF o imagen, máx. 8 MB) que sube el plano a una carpeta de Drive llamada
-"Planos - Mapa de Tableros" — se crea sola la primera vez, no hace falta prepararla a mano. El
-archivo queda compartido como "cualquiera con el link puede ver" (si no, el link no serviría
-para nada al abrirlo desde el popup del mapa). Como esto usa Drive además de Sheets, la
-**primera vez** que guardes con `Code.gs` actualizado Google va a pedir autorizar un permiso
-nuevo (acceso a Drive) — es un único paso, similar a cuando autorizaste el acceso a la planilla.
+selector de archivo (PDF o imagen, máx. 8 MB) que sube el plano directamente a las carpetas de
+Drive que ya se usaban para esto — una por zona (`ZONA_FOLDER_IDS` en `Code.gs`), cada una con
+subcarpetas `Sector XX`. El sector se calcula solo a partir del código del tablero (formato
+`XYYXX`: el dígito 1 es la zona, los dígitos 2-3 son el sector); si la subcarpeta de ese sector
+no existe todavía, el script la crea. Si en algún momento cambian de carpeta, solo hay que
+actualizar los 3 IDs en `ZONA_FOLDER_IDS` (el ID es la parte de la URL de Drive después de
+`/folders/`). El archivo sube compartido como "cualquiera con el link puede ver" (si no, el
+link no serviría para nada al abrirlo desde el popup del mapa). Como esto usa Drive además de
+Sheets, la **primera vez** que guardes con `Code.gs` actualizado Google va a pedir autorizar un
+permiso nuevo (acceso a Drive) — es un único paso, similar a cuando autorizaste el acceso a la
+planilla.
 
 **Nota**: al guardar, el tablero aparece en el mapa al instante (no espera al Sheet), pero el
 CSV publicado que ven el resto de los usuarios puede tardar unos minutos en reflejar el cambio
