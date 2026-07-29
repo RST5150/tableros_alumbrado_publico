@@ -10,6 +10,11 @@ function decodeJwt(token) {
   return JSON.parse(decodeURIComponent(escape(json)));
 }
 
+function parseCapas(value) {
+  const v = (value || '').trim();
+  return v === '*' ? '*' : v.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 async function fetchRoles() {
   const res = await fetch(CONFIG.rolesCsvUrl);
   const text = await res.text();
@@ -18,22 +23,33 @@ async function fetchRoles() {
   for (const row of data) {
     const email = (row.Email || '').trim().toLowerCase();
     if (!email) continue;
-    const layers = (row.Capas_permitidas || '').trim();
-    roles.set(email, layers === '*' ? '*' : layers.split(',').map((s) => s.trim()).filter(Boolean));
+    // "Ver" y "editar" son permisos separados: alguien puede ver los tableros de una zona
+    // sin poder tocarlos. Capas_editables es independiente de Capas_permitidas.
+    roles.set(email, {
+      view: parseCapas(row.Capas_permitidas),
+      edit: parseCapas(row.Capas_editables),
+    });
   }
   return roles;
 }
 
+function resolveGrant(user, roles, kind) {
+  if (!user) return new Set();
+  const grant = roles.get(user.email.toLowerCase())?.[kind];
+  if (!grant) return new Set();
+  if (grant === '*') return new Set([...CONFIG.polygonLayers, ...CONFIG.pointLayers].map((l) => l.id));
+  return new Set(grant);
+}
+
 export function allowedLayerIds(user, roles) {
   const publicIds = new Set(CONFIG.publicLayerIds);
-  if (!user) return publicIds;
+  return new Set([...publicIds, ...resolveGrant(user, roles, 'view')]);
+}
 
-  const grant = roles.get(user.email.toLowerCase());
-  if (!grant) return publicIds;
-
-  const allLayerIds = [...CONFIG.polygonLayers, ...CONFIG.pointLayers].map((l) => l.id);
-  const granted = grant === '*' ? allLayerIds : grant;
-  return new Set([...publicIds, ...granted]);
+// Zonas de tableros que el usuario puede crear/editar desde el formulario (independiente de
+// cuáles puede ver).
+export function editableLayerIds(user, roles) {
+  return resolveGrant(user, roles, 'edit');
 }
 
 // onChange(user) se llama al iniciar/cerrar sesión, con el usuario actual (o null).
@@ -78,7 +94,10 @@ export function initAuth(onChange) {
 
   async function handleCredential(response) {
     const claims = decodeJwt(response.credential);
-    currentUser = { email: claims.email, name: claims.name, picture: claims.picture };
+    // Se guarda el JWT crudo (no solo los datos ya decodificados) porque el formulario de
+    // tableros lo manda tal cual al Apps Script, que lo vuelve a validar contra Google antes
+    // de aceptar cualquier guardado.
+    currentUser = { email: claims.email, name: claims.name, picture: claims.picture, token: response.credential };
     renderSignedIn(currentUser);
     onChange(currentUser);
   }

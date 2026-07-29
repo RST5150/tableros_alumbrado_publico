@@ -32,7 +32,14 @@ export const CONFIG = {
   // Capas visibles para cualquiera, sin necesidad de iniciar sesión.
   publicLayerIds: ['zonas', 'subzonas', 'sectores'],
 
-  // Hoja "Roles" publicada como CSV: columnas Email, Capas_permitidas
-  // (Capas_permitidas = ids de capa separados por coma, o "*" para todas).
+  // Hoja "Roles" publicada como CSV: columnas Email, Capas_permitidas, Capas_editables
+  // (ambas = ids de capa separados por coma, o "*" para todas). Capas_permitidas controla qué
+  // ve cada usuario; Capas_editables (independiente) controla qué puede crear/editar desde el
+  // formulario de tableros.
   rolesCsvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1213598122&single=true&output=csv',
+
+  // URL del Google Apps Script Web App que recibe los guardados del formulario de tableros
+  // (ver README, sección "Formulario de tableros"). Hasta que esté configurado, el botón de
+  // agregar/editar no se muestra.
+  appsScriptUrl: 'REEMPLAZAR_CON_LA_URL_DE_TU_APPS_SCRIPT',
 };

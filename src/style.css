@@ -283,3 +283,176 @@ body {
     background: #3a3b42;
   }
 }
+
+/* Botón "Editar" dentro del popup de un tablero. */
+.edit-tablero-btn {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Botón flotante "+ Agregar tablero", abajo a la derecha. */
+.add-tablero-btn {
+  background: var(--topbar-bg);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font: 600 14px system-ui, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+/* Panel lateral para crear/editar un tablero. Fijo a la derecha (no tapa todo el mapa) para
+   que "Elegir ubicación en el mapa" se pueda usar sin cerrar el formulario. */
+.tablero-form-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  max-width: 92vw;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.25);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.tablero-form-panel.open {
+  transform: translateX(0);
+}
+
+/* En pantallas angostas (celular), un panel lateral de 340px tapa casi todo el mapa y no deja
+   lugar para "Elegir ubicación en el mapa". Pasa a ser una hoja inferior que deja libre la
+   parte de arriba. */
+@media (max-width: 640px) {
+  .tablero-form-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: 100%;
+    height: 68vh;
+    transform: translateY(100%);
+  }
+  .tablero-form-panel.open {
+    transform: translateY(0);
+  }
+}
+
+.tablero-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--topbar-bg);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.tablero-form-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tablero-form-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tablero-form-body {
+  padding: 14px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.tablero-form-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-weight: 600;
+}
+
+.tablero-form-body input,
+.tablero-form-body select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.tablero-form-latlon {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tablero-form-pick {
+  padding: 6px 8px;
+  border: 1px dashed var(--accent);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tablero-form-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.tablero-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tablero-form-actions button {
+  padding: 7px 14px;
+  border-radius: 5px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tablero-form-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.tablero-form-save {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.tablero-form-save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

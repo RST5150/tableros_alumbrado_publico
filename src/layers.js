@@ -11,7 +11,7 @@ function direccion(row) {
   return [partes, letra, bis].filter(Boolean).join(' ');
 }
 
-function pointPopupHtml(row) {
+function pointPopupHtml(row, editable) {
   const inspeccionado = (row['Última Inspección'] || '').trim();
   const dir = direccion(row);
   const extraRows = [
@@ -34,8 +34,29 @@ function pointPopupHtml(row) {
       <dl>
         ${extraRows.map(([label, value]) => `<dt>${label}</dt><dd>${value}</dd>`).join('')}
       </dl>
+      ${editable ? '<button type="button" class="edit-tablero-btn">Editar</button>' : ''}
     </div>
   `;
+}
+
+// Reutilizable tanto al cargar el CSV inicial como al reflejar en el mapa un guardado hecho
+// desde el formulario (ver forms.js / upsertTablero más abajo).
+function buildTableroMarker(row, def, isEditable) {
+  const marker = L.circleMarker([parseFloat(row.Lat), parseFloat(row.Lon)], {
+    pane: 'tableros',
+    radius: 7,
+    color: def.color,
+    weight: 2,
+    fillColor: def.color,
+    fillOpacity: 0.85,
+  });
+  // Función (no string fija): así el popup se recalcula cada vez que se abre y refleja el
+  // permiso de edición vigente en ese momento, aunque haya cambiado desde que se cargó la capa.
+  marker.bindPopup(() => pointPopupHtml(marker.tableroRow, isEditable(def.id)));
+  marker.tableroRow = row;
+  marker.tableroDireccion = direccion(row);
+  marker.tableroDef = def;
+  return marker;
 }
 
 async function loadPolygonLayer(def) {
@@ -58,7 +79,7 @@ async function loadPolygonLayer(def) {
   });
 }
 
-async function loadPointLayer(def) {
+async function loadPointLayer(def, isEditable) {
   const res = await fetch(def.url);
   if (!res.ok) throw new Error(`No se pudo cargar ${def.url}`);
   const text = await res.text();
@@ -66,22 +87,8 @@ async function loadPointLayer(def) {
 
   const markers = [];
   for (const row of data) {
-    const lat = parseFloat(row.Lat);
-    const lon = parseFloat(row.Lon);
-    if (Number.isNaN(lat) || Number.isNaN(lon)) continue;
-    const marker = L.circleMarker([lat, lon], {
-      pane: 'tableros',
-      radius: 7,
-      color: def.color,
-      weight: 2,
-      fillColor: def.color,
-      fillOpacity: 0.85,
-    });
-    marker.bindPopup(pointPopupHtml(row));
-    // Se guardan para poder indexar el buscador (código + dirección) más adelante.
-    marker.tableroRow = row;
-    marker.tableroDireccion = direccion(row);
-    markers.push(marker);
+    if (Number.isNaN(parseFloat(row.Lat)) || Number.isNaN(parseFloat(row.Lon))) continue;
+    markers.push(buildTableroMarker(row, def, isEditable));
   }
   return L.layerGroup(markers);
 }
@@ -89,7 +96,8 @@ async function loadPointLayer(def) {
 // Crea el mapa, carga todas las capas definidas en CONFIG y arma el control de capas
 // mostrando solo las que están en `allowedIds`. Devuelve una función para refrescar
 // la visibilidad cuando cambian los permisos (login/logout).
-export async function buildMap(allowedIds) {
+// `onEditRequest(def, row, marker)` se llama al apretar "Editar" en el popup de un tablero.
+export async function buildMap(allowedIds, onEditRequest) {
   const map = L.map('map').setView(CONFIG.mapCenter, CONFIG.mapZoom);
 
   // Pane propio con z-index por encima del de polígonos (Zonas/Subzonas/Sectores), para que
@@ -119,6 +127,22 @@ export async function buildMap(allowedIds) {
   baseLayers.Callejero.addTo(map);
   L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
 
+  // Zonas de tableros que el usuario actual puede editar (independiente de cuáles ve). Se
+  // define antes de cargar las capas porque cada popup de tablero la consulta en el momento
+  // de abrirse (ver buildTableroMarker).
+  let editableZonaIds = new Set();
+  const isEditable = (id) => editableZonaIds.has(id);
+
+  // El botón "Editar" del popup (si está, ver pointPopupHtml) dispara onEditRequest con el
+  // tablero que corresponde al marcador que abrió ese popup.
+  map.on('popupopen', (e) => {
+    const marker = e.popup._source;
+    const btn = e.popup.getElement()?.querySelector('.edit-tablero-btn');
+    if (btn && marker?.tableroRow) {
+      btn.onclick = () => onEditRequest?.(marker.tableroDef, marker.tableroRow, marker);
+    }
+  });
+
   const allDefs = [
     ...CONFIG.polygonLayers.map((d) => ({ ...d, kind: 'polygon' })),
     ...CONFIG.pointLayers.map((d) => ({ ...d, kind: 'point' })),
@@ -127,7 +151,7 @@ export async function buildMap(allowedIds) {
   const entries = await Promise.all(
     allDefs.map(async (def) => {
       try {
-        const layer = def.kind === 'polygon' ? await loadPolygonLayer(def) : await loadPointLayer(def);
+        const layer = def.kind === 'polygon' ? await loadPolygonLayer(def) : await loadPointLayer(def, isEditable);
         return { def, layer };
       } catch (err) {
         console.error(`Error cargando capa "${def.id}":`, err);
@@ -219,6 +243,24 @@ export async function buildMap(allowedIds) {
     return results;
   }
 
+  // Llamado desde main.js cada vez que cambia el login: actualiza qué zonas puede
+  // crear/editar el usuario actual (los popups ya abiertos no cambian, pero cualquiera que se
+  // abra después consulta este set en el momento, ver buildTableroMarker).
+  function setEditableZonaIds(ids) {
+    editableZonaIds = ids;
+  }
+
+  // Refleja en el mapa, al instante, un tablero recién creado/editado desde el formulario
+  // (sin esperar a que el CSV publicado del Sheet se actualice, que tarda unos minutos).
+  function upsertTablero(def, row) {
+    const entry = loaded.find((e) => e.def.id === def.id);
+    if (!entry) return;
+    entry.layer.eachLayer((marker) => {
+      if (marker.tableroRow?.Nombre === row.Nombre) entry.layer.removeLayer(marker);
+    });
+    buildTableroMarker(row, def, isEditable).addTo(entry.layer);
+  }
+
   applyVisibility(allowedIds);
-  return { map, applyVisibility, getSearchableTableros };
+  return { map, applyVisibility, getSearchableTableros, setEditableZonaIds, upsertTablero };
 }
