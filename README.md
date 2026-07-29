@@ -153,6 +153,22 @@ Sheets, la **primera vez** que guardes con `Code.gs` actualizado Google va a ped
 permiso nuevo (acceso a Drive) — es un único paso, similar a cuando autorizaste el acceso a la
 planilla.
 
+**Subir fotos externa/interna desde el formulario**: mismo selector de archivo, pero a
+diferencia del plano el archivo se puede subir tal cual sale del celular — no hace falta
+renombrarlo, el script arma el nombre final (código de tablero + `_ext` o `_int`) solo, a
+partir de qué tablero se está editando. Estas fotos van a **Cloudinary** (no a Drive), que es
+donde ya se venían guardando:
+
+1. En [cloudinary.com](https://cloudinary.com) → Dashboard, copiá tu **Cloud name** y **API
+   Key** (ya están cargados en `Code.gs`: `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` — si
+   alguna vez cambian de cuenta, actualizarlos ahí).
+2. El **API Secret** NO va en el código (es sensible y el repo es público). Se guarda aparte:
+   en el editor de Apps Script → ícono de engranaje **"Configuración del proyecto"** → bajar
+   hasta **"Propiedades del script"** → **Agregar propiedad del script** → clave
+   `CLOUDINARY_API_SECRET`, valor: tu API Secret (con el botón del ojito en el Dashboard de
+   Cloudinary para verlo) → Guardar.
+3. Sin ese paso, subir una foto da el error "Falta configurar CLOUDINARY_API_SECRET...".
+
 **Nota**: al guardar, el tablero aparece en el mapa al instante (no espera al Sheet), pero el
 CSV publicado que ven el resto de los usuarios puede tardar unos minutos en reflejar el cambio
 — es el cacheo propio de "Publicar en la web" de Google Sheets, no algo que se pueda evitar

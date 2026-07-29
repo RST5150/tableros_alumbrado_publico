@@ -1,8 +1,8 @@
 import L from 'leaflet';
 import { CONFIG } from './config.js';
 
-// Columnas reales del Sheet (además de Nombre/Lat/Lon y Plano, que se tratan aparte). Las
-// claves tienen que coincidir exactamente con los encabezados de las hojas tableros_zona*.
+// Columnas reales del Sheet (además de Nombre/Lat/Lon, Plano y las Fotos, que se tratan
+// aparte). Las claves tienen que coincidir exactamente con los encabezados de tableros_zona*.
 const FIELDS = [
   { key: 'Tipo', label: 'Tipo' },
   { key: 'Clasificación', label: 'Clasificación' },
@@ -12,12 +12,10 @@ const FIELDS = [
   { key: 'Letra', label: 'Letra' },
   { key: 'Bis', label: 'Bis' },
   { key: 'Responsable', label: 'Responsable' },
-  { key: 'Foto Externa', label: 'Foto externa (link)' },
-  { key: 'Foto Interna', label: 'Foto interna (link)' },
   { key: 'Última Inspección', label: 'Última inspección', type: 'date' },
 ];
 
-const MAX_PLANO_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 // Mismo límite que ya usa scripts/shp-convert.mjs / Code.gs: el número real de sectores que
 // tiene cada zona (Zona1 hasta 69, Zona2 hasta 53, Zona3 hasta 52). Si cambian los sectores,
@@ -124,6 +122,30 @@ function buildPanel() {
         <span class="tablero-form-plano-status"></span>
       </div>
 
+      <label>
+        Foto externa
+        <input type="text" name="Foto Externa" placeholder="Link (o subí una foto abajo)" />
+      </label>
+      <div class="tablero-form-plano-upload">
+        <label class="tablero-form-file-label">
+          Subir foto nueva (imagen, máx. 8 MB — se puede subir tal cual sale del celular)
+          <input type="file" class="tablero-form-foto-ext-file" accept="image/*" />
+        </label>
+        <span class="tablero-form-foto-ext-status"></span>
+      </div>
+
+      <label>
+        Foto interna
+        <input type="text" name="Foto Interna" placeholder="Link (o subí una foto abajo)" />
+      </label>
+      <div class="tablero-form-plano-upload">
+        <label class="tablero-form-file-label">
+          Subir foto nueva (imagen, máx. 8 MB — se puede subir tal cual sale del celular)
+          <input type="file" class="tablero-form-foto-int-file" accept="image/*" />
+        </label>
+        <span class="tablero-form-foto-int-status"></span>
+      </div>
+
       ${FIELDS.map(
         (f) => `
         <label>
@@ -163,6 +185,12 @@ export function initForms({ map, upsertTablero }) {
   const planoInput = panel.querySelector('input[name=Plano]');
   const planoFileInput = panel.querySelector('.tablero-form-plano-file');
   const planoStatus = panel.querySelector('.tablero-form-plano-status');
+  const fotoExtInput = panel.querySelector('input[name="Foto Externa"]');
+  const fotoExtFileInput = panel.querySelector('.tablero-form-foto-ext-file');
+  const fotoExtStatus = panel.querySelector('.tablero-form-foto-ext-status');
+  const fotoIntInput = panel.querySelector('input[name="Foto Interna"]');
+  const fotoIntFileInput = panel.querySelector('.tablero-form-foto-int-file');
+  const fotoIntStatus = panel.querySelector('.tablero-form-foto-int-status');
   const saveBtn = panel.querySelector('.tablero-form-save');
 
   planoFileInput.addEventListener('change', () => {
@@ -176,7 +204,7 @@ export function initForms({ map, upsertTablero }) {
       planoFileInput.value = '';
       return;
     }
-    if (file.size > MAX_PLANO_BYTES) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       planoStatus.textContent = `"${file.name}" pesa más de 8 MB, elegí otro archivo.`;
       planoFileInput.value = '';
       return;
@@ -189,6 +217,29 @@ export function initForms({ map, upsertTablero }) {
     }
     planoStatus.textContent = `Se va a subir "${file.name}" y va a reemplazar el link de arriba.`;
   });
+
+  function wireFotoFileInput(fileInput, statusEl, label) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        statusEl.textContent = '';
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        statusEl.textContent = `"${file.name}" no es una imagen.`;
+        fileInput.value = '';
+        return;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        statusEl.textContent = `"${file.name}" pesa más de 8 MB, elegí otro archivo.`;
+        fileInput.value = '';
+        return;
+      }
+      statusEl.textContent = `Se va a subir "${file.name}" como ${label} y va a reemplazar el link de arriba.`;
+    });
+  }
+  wireFotoFileInput(fotoExtFileInput, fotoExtStatus, 'foto externa');
+  wireFotoFileInput(fotoIntFileInput, fotoIntStatus, 'foto interna');
 
   function showError(message) {
     errorBox.textContent = message;
@@ -226,6 +277,8 @@ export function initForms({ map, upsertTablero }) {
     hideError();
     form.reset();
     planoStatus.textContent = '';
+    fotoExtStatus.textContent = '';
+    fotoIntStatus.textContent = '';
 
     if (mode === 'create') {
       title.textContent = 'Nuevo tablero';
@@ -242,6 +295,8 @@ export function initForms({ map, upsertTablero }) {
       latInput.value = opts.row.Lat || '';
       lonInput.value = opts.row.Lon || '';
       planoInput.value = opts.row.Plano || '';
+      fotoExtInput.value = opts.row['Foto Externa'] || '';
+      fotoIntInput.value = opts.row['Foto Interna'] || '';
       for (const f of FIELDS) {
         const input = form.querySelector(`[name="${CSS.escape(f.key)}"]`);
         if (input) input.value = opts.row[f.key] || '';
@@ -260,6 +315,18 @@ export function initForms({ map, upsertTablero }) {
     openForm({ mode: 'edit', def, row });
   }
 
+  // El script arma el nombre final (código + _ext/_int) solo, a partir de zona/nombre/tipo —
+  // no hace falta que el archivo que se sube ya se llame así.
+  async function uploadFoto(file, tipo, zonaId, nombre, timeoutMs) {
+    const fileData = await fileToBase64(file);
+    const json = await postToScript(
+      { idToken: user.token, action: 'uploadFoto', zona: zonaId, nombre, tipo, fileName: file.name, mimeType: file.type, fileData },
+      timeoutMs
+    );
+    if (!json.ok) throw new Error(json.error || 'No se pudo subir la foto.');
+    return json.url;
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError();
@@ -271,6 +338,8 @@ export function initForms({ map, upsertTablero }) {
       Lat: latInput.value.trim(),
       Lon: lonInput.value.trim(),
       Plano: planoInput.value.trim(),
+      'Foto Externa': fotoExtInput.value.trim(),
+      'Foto Interna': fotoIntInput.value.trim(),
     };
     for (const f of FIELDS) {
       data[f.key] = form.querySelector(`[name="${CSS.escape(f.key)}"]`).value.trim();
@@ -317,6 +386,18 @@ export function initForms({ map, upsertTablero }) {
         );
         if (!uploadJson.ok) throw new Error(uploadJson.error || 'No se pudo subir el plano.');
         data.Plano = uploadJson.url;
+      }
+
+      const fotoExtFile = fotoExtFileInput.files[0];
+      if (fotoExtFile) {
+        saveBtn.textContent = 'Subiendo foto externa…';
+        data['Foto Externa'] = await uploadFoto(fotoExtFile, 'ext', zonaId, data.Nombre, timeoutMs);
+      }
+
+      const fotoIntFile = fotoIntFileInput.files[0];
+      if (fotoIntFile) {
+        saveBtn.textContent = 'Subiendo foto interna…';
+        data['Foto Interna'] = await uploadFoto(fotoIntFile, 'int', zonaId, data.Nombre, timeoutMs);
       }
 
       saveBtn.textContent = 'Guardando…';

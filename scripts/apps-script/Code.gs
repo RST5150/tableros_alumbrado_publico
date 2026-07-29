@@ -25,6 +25,9 @@ function doPost(e) {
     if (body.action === 'uploadFile') {
       return jsonResponse({ ok: true, url: uploadPlano(body) });
     }
+    if (body.action === 'uploadFoto') {
+      return jsonResponse({ ok: true, url: uploadFoto(body) });
+    }
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.zona);
     if (!sheet) return jsonResponse({ ok: false, error: 'No existe la hoja "' + body.zona + '".' });
@@ -142,6 +145,65 @@ function getSectorFolder(zona, nombre) {
   var folderName = 'Sector ' + sector;
   var it = root.getFoldersByName(folderName);
   return it.hasNext() ? it.next() : root.createFolder(folderName);
+}
+
+// Fotos externa/interna: van a Cloudinary (no a Drive) porque ahí es donde ya se venían
+// guardando. El API Secret NO va acá — se lee de Configuración del proyecto → Propiedades del
+// script (clave CLOUDINARY_API_SECRET), para que no quede en el código del repo, que es público.
+var CLOUDINARY_CLOUD_NAME = 'alumbrado';
+var CLOUDINARY_API_KEY = '731833263647895';
+
+// A diferencia del plano, acá no se valida el nombre que trae el archivo: el nombre final
+// (código de tablero + _ext/_int) lo arma este mismo script a partir de la zona/tablero que
+// se está editando, así quien sube la foto puede usar el archivo tal cual sale del celular.
+function uploadFoto(body) {
+  if (!body.fileData) throw new Error('Falta el archivo a subir.');
+  if (!/^image\//.test(body.mimeType || '')) throw new Error('Solo se aceptan imágenes.');
+  if (body.tipo !== 'ext' && body.tipo !== 'int') throw new Error('Tipo de foto inválido.');
+
+  var maxBytes = 8 * 1024 * 1024;
+  var bytes = Utilities.base64Decode(body.fileData);
+  if (bytes.length > maxBytes) throw new Error('El archivo pesa más de 8 MB.');
+
+  var apiSecret = PropertiesService.getScriptProperties().getProperty('CLOUDINARY_API_SECRET');
+  if (!apiSecret) throw new Error('Falta configurar CLOUDINARY_API_SECRET en las propiedades del script.');
+
+  var codigo = String(body.nombre || '').trim();
+  if (codigo.length < 3) throw new Error('No se pudo determinar el sector del código "' + codigo + '".');
+  var sector = codigo.substring(1, 3);
+  var publicId = body.zona + '/sector_' + sector + '/' + codigo + '_' + body.tipo;
+
+  var timestamp = Math.floor(Date.now() / 1000);
+  var toSign = 'overwrite=true&public_id=' + publicId + '&timestamp=' + timestamp;
+  var signature = sha1Hex(toSign + apiSecret);
+
+  var blob = Utilities.newBlob(bytes, body.mimeType, body.fileName || (codigo + '_' + body.tipo));
+  var res = UrlFetchApp.fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD_NAME + '/image/upload', {
+    method: 'post',
+    payload: {
+      file: blob,
+      api_key: CLOUDINARY_API_KEY,
+      timestamp: String(timestamp),
+      signature: signature,
+      public_id: publicId,
+      overwrite: 'true',
+    },
+    muteHttpExceptions: true,
+  });
+
+  var json = JSON.parse(res.getContentText());
+  if (json.error) throw new Error('Cloudinary: ' + json.error.message);
+  return json.secure_url;
+}
+
+function sha1Hex(value) {
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, value);
+  return digest
+    .map(function (b) {
+      var v = (b < 0 ? b + 256 : b).toString(16);
+      return v.length === 1 ? '0' + v : v;
+    })
+    .join('');
 }
 
 // Valida el JWT de Google Sign-In contra los servidores de Google (no confía en el email que
