@@ -19,6 +19,30 @@ const FIELDS = [
 
 const MAX_PLANO_BYTES = 8 * 1024 * 1024;
 
+// Mismo límite que ya usa scripts/shp-convert.mjs / Code.gs: el número real de sectores que
+// tiene cada zona (Zona1 hasta 69, Zona2 hasta 53, Zona3 hasta 52). Si cambian los sectores,
+// actualizar acá y en Code.gs (MAX_SECTOR_BY_ZONA).
+const MAX_SECTOR_BY_ZONA = { 1: 69, 2: 53, 3: 52 };
+
+// El nombre del archivo (sin extensión) tiene que ser el código de tablero: 5 dígitos, el
+// primero 1/2/3 (zona), y el sector (dígitos 2-3) dentro del rango real de esa zona.
+function planoFileNameError(fileName) {
+  const base = fileName.replace(/\.[^.]+$/, '');
+  if (!/^\d{5}$/.test(base)) {
+    return 'El nombre del archivo tiene que ser el código del tablero: 5 números (ej. "16309.pdf").';
+  }
+  const zona = Number(base[0]);
+  const sector = Number(base.slice(1, 3));
+  const maxSector = MAX_SECTOR_BY_ZONA[zona];
+  if (!maxSector) {
+    return `El primer número tiene que ser 1, 2 o 3 (zona) — "${base[0]}" no es válido.`;
+  }
+  if (sector < 1 || sector > maxSector) {
+    return `El sector "${base.slice(1, 3)}" no existe en la Zona ${zona} (hay hasta ${maxSector}).`;
+  }
+  return null;
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -93,8 +117,9 @@ function buildPanel() {
       </label>
       <div class="tablero-form-plano-upload">
         <label class="tablero-form-file-label">
-          Subir plano nuevo (PDF o imagen, máx. 8 MB)
-          <input type="file" class="tablero-form-plano-file" accept="application/pdf,image/*" />
+          Subir plano nuevo (PDF, máx. 8 MB, el archivo se tiene que llamar como el código del
+          tablero — ej. "16309.pdf")
+          <input type="file" class="tablero-form-plano-file" accept="application/pdf" />
         </label>
         <span class="tablero-form-plano-status"></span>
       </div>
@@ -146,8 +171,19 @@ export function initForms({ map, upsertTablero }) {
       planoStatus.textContent = '';
       return;
     }
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      planoStatus.textContent = `"${file.name}" no es un PDF.`;
+      planoFileInput.value = '';
+      return;
+    }
     if (file.size > MAX_PLANO_BYTES) {
       planoStatus.textContent = `"${file.name}" pesa más de 8 MB, elegí otro archivo.`;
+      planoFileInput.value = '';
+      return;
+    }
+    const nameError = planoFileNameError(file.name);
+    if (nameError) {
+      planoStatus.textContent = nameError;
       planoFileInput.value = '';
       return;
     }

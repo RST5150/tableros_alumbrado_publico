@@ -50,12 +50,40 @@ var ZONA_FOLDER_IDS = {
   tableros_zona3: '1rFfcV9aPdpVyeC73NgEtm2O_HfjMfnOP',
 };
 
+// Mismo límite que en src/forms.js (MAX_SECTOR_BY_ZONA): número real de sectores que tiene
+// cada zona. Si cambian los sectores, actualizar acá y allá.
+var MAX_SECTOR_BY_ZONA = { 1: 69, 2: 53, 3: 52 };
+
+// Solo se aceptan PDF cuyo nombre (sin extensión) sea el código de tablero: 5 dígitos, el
+// primero 1/2/3 (zona), sector (dígitos 2-3) dentro del rango real de esa zona. Se valida acá
+// (no solo en el formulario) porque esta es la única puerta que no se puede saltear pegándole
+// directo a la URL del script.
+function assertValidPlanoFileName(fileName) {
+  var base = String(fileName).replace(/\.[^.]+$/, '');
+  if (!/^\d{5}$/.test(base)) {
+    throw new Error('El nombre del archivo tiene que ser el código del tablero: 5 números (ej. "16309.pdf").');
+  }
+  var zona = Number(base.charAt(0));
+  var sector = Number(base.substring(1, 3));
+  var maxSector = MAX_SECTOR_BY_ZONA[zona];
+  if (!maxSector) {
+    throw new Error('El primer número tiene que ser 1, 2 o 3 (zona) — "' + base.charAt(0) + '" no es válido.');
+  }
+  if (sector < 1 || sector > maxSector) {
+    throw new Error('El sector "' + base.substring(1, 3) + '" no existe en la Zona ' + zona + ' (hay hasta ' + maxSector + ').');
+  }
+}
+
 // Sube el plano a Drive, dentro de la subcarpeta "Sector XX" que corresponda según el código
 // del tablero, y devuelve el link para guardar en la columna "Plano". El archivo queda visible
 // para "cualquiera con el link" — si no, el link no serviría para nada al abrirlo desde el
 // popup del mapa.
 function uploadPlano(body) {
   if (!body.fileData || !body.fileName) throw new Error('Falta el archivo a subir.');
+  if (body.mimeType !== 'application/pdf' && !/\.pdf$/i.test(body.fileName)) {
+    throw new Error('Solo se aceptan archivos PDF.');
+  }
+  assertValidPlanoFileName(body.fileName);
 
   var maxBytes = 8 * 1024 * 1024;
   var bytes = Utilities.base64Decode(body.fileData);
