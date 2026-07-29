@@ -41,5 +41,5 @@ export const CONFIG = {
   // URL del Google Apps Script Web App que recibe los guardados del formulario de tableros
   // (ver README, sección "Formulario de tableros"). Hasta que esté configurado, el botón de
   // agregar/editar no se muestra.
-  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyjEU1zItkQsk4YAgFjx_85ssIx3AVKcT7gLOH1XP-gejlIHt0Gv0bS-FGnUJrz5aec8A/exec',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwFLJ_bwntBR2s_tpG5MMW8vF5JMkmh1wSu6C1LWrcjFjQRvwpc_dFVMpcFq_aMUa834w/exec',
 };
