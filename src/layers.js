@@ -4,6 +4,26 @@ import { CONFIG } from './config.js';
 
 const isUrl = (v) => /^https?:\/\//i.test(v || '');
 
+// Preferencias del mapa (mapa base, qué capas quedaron tildadas, si se muestran las
+// referencias) guardadas en el navegador para no tener que elegirlas de nuevo en cada visita.
+const PREFS_KEY = 'mapa-tableros-prefs';
+
+function loadPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function savePrefs(prefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // Modo privado / cuota llena: no es crítico, solo se pierde la persistencia.
+  }
+}
+
 function direccion(row) {
   const partes = [row.Calle, row.Altura].filter(Boolean).join(' ');
   const letra = row.Letra ? row.Letra : '';
@@ -121,6 +141,7 @@ async function loadPointLayer(def, isEditable) {
 // `onEditRequest(def, row, marker)` se llama al apretar "Editar" en el popup de un tablero.
 export async function buildMap(allowedIds, onEditRequest) {
   const map = L.map('map').setView(CONFIG.mapCenter, CONFIG.mapZoom);
+  const prefs = loadPrefs();
 
   // Pane propio con z-index por encima del de polígonos (Zonas/Subzonas/Sectores), para que
   // los tableros siempre se vean arriba sin importar el orden en que se activen las capas.
@@ -146,8 +167,13 @@ export async function buildMap(allowedIds, onEditRequest) {
       maxNativeZoom: 17,
     }),
   };
-  baseLayers.Callejero.addTo(map);
+  const initialBase = prefs.baseLayer && baseLayers[prefs.baseLayer] ? prefs.baseLayer : 'Callejero';
+  baseLayers[initialBase].addTo(map);
   L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
+  map.on('baselayerchange', (e) => {
+    prefs.baseLayer = e.name;
+    savePrefs(prefs);
+  });
 
   // Zonas de tableros que el usuario actual puede editar (independiente de cuáles ve). Se
   // define antes de cargar las capas porque cada popup de tablero la consulta en el momento
@@ -188,6 +214,16 @@ export async function buildMap(allowedIds, onEditRequest) {
   // (el toggle de números, más abajo, queda apilado entre los dos).
   const polygonControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
 
+  // Guarda qué capas tilda/destilda el usuario a mano, para restaurarlo en la próxima visita
+  // (pisa el defaultVisible de CONFIG la primera vez que esa capa está disponible).
+  if (!prefs.layerVisibility) prefs.layerVisibility = {};
+  map.on('overlayadd overlayremove', (e) => {
+    const entry = loaded.find((en) => en.layer === e.layer);
+    if (!entry) return;
+    prefs.layerVisibility[entry.def.id] = e.type === 'overlayadd';
+    savePrefs(prefs);
+  });
+
   // Capas que ya se agregaron al selector (aunque no estén tildadas en el mapa). Sirve para
   // distinguir "recién habilitada -> aplicar defaultVisible" de "el usuario la destildó a mano".
   const registered = new Set();
@@ -199,7 +235,9 @@ export async function buildMap(allowedIds, onEditRequest) {
         controlFor(def).addOverlay(layer, def.label);
         registered.add(def.id);
         if (def.kind === 'point') visiblePointLayers += 1;
-        if (def.defaultVisible !== false) layer.addTo(map);
+        const remembered = prefs.layerVisibility[def.id];
+        const wantVisible = remembered !== undefined ? remembered : def.defaultVisible !== false;
+        if (wantVisible) layer.addTo(map);
       } else if (!isAllowed && registered.has(def.id)) {
         map.removeLayer(layer);
         controlFor(def).removeLayer(layer);
@@ -226,7 +264,7 @@ export async function buildMap(allowedIds, onEditRequest) {
 
   // Toggle de "Mostrar referencias": abre/cierra el tooltip permanente de cada polígono sin
   // afectar si la capa en sí está prendida o apagada.
-  let labelsVisible = true;
+  let labelsVisible = prefs.labelsVisible !== false;
   function applyLabelsVisibility() {
     for (const { def, layer } of loaded) {
       if (def.kind !== 'polygon') continue;
@@ -240,13 +278,17 @@ export async function buildMap(allowedIds, onEditRequest) {
       const container = L.DomUtil.create('div', 'labels-toggle leaflet-bar');
       container.innerHTML = `
         <label>
-          <input type="checkbox" checked />
+          <input type="checkbox" />
           Mostrar referencias
         </label>
       `;
       L.DomEvent.disableClickPropagation(container);
-      container.querySelector('input').addEventListener('change', (e) => {
+      const checkbox = container.querySelector('input');
+      checkbox.checked = labelsVisible;
+      checkbox.addEventListener('change', (e) => {
         labelsVisible = e.target.checked;
+        prefs.labelsVisible = labelsVisible;
+        savePrefs(prefs);
         applyLabelsVisibility();
       });
       return container;
