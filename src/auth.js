@@ -10,6 +10,38 @@ function decodeJwt(token) {
   return JSON.parse(decodeURIComponent(escape(json)));
 }
 
+// Sesión persistida en el navegador: al recargar la página (o volver otro día) se restaura
+// de inmediato sin esperar a Google, y mientras tanto el "auto sign-in" de Google (más abajo)
+// la refresca en segundo plano con un token nuevo. Si ese refresco silencioso falla (se cerró
+// la sesión de Google, cookies de terceros bloqueadas, etc.), el usuario sigue viendo sus
+// capas con el último token conocido — si intenta guardar algo con un token vencido, el Apps
+// Script lo rechaza y se le pide reloguearse (ver forms.js).
+const STORAGE_KEY = 'mapa-tableros-auth';
+
+function loadCachedUser() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedUser(user) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  } catch {
+    // Modo privado / cuota llena: no es crítico, solo se pierde la persistencia.
+  }
+}
+
+function clearCachedUser() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignorar
+  }
+}
+
 function parseCapas(value) {
   const v = (value || '').trim();
   return v === '*' ? '*' : v.split(',').map((s) => s.trim()).filter(Boolean);
@@ -84,6 +116,7 @@ export function initAuth(onChange) {
     signOut.textContent = 'Salir';
     signOut.onclick = () => {
       window.google?.accounts.id.disableAutoSelect();
+      clearCachedUser();
       currentUser = null;
       renderSignedOut();
       onChange(null);
@@ -98,6 +131,7 @@ export function initAuth(onChange) {
     // tableros lo manda tal cual al Apps Script, que lo vuelve a validar contra Google antes
     // de aceptar cualquier guardado.
     currentUser = { email: claims.email, name: claims.name, picture: claims.picture, token: response.credential };
+    saveCachedUser(currentUser);
     renderSignedIn(currentUser);
     onChange(currentUser);
   }
@@ -107,11 +141,31 @@ export function initAuth(onChange) {
       renderSignedOut();
       return;
     }
+
     window.google.accounts.id.initialize({
       client_id: CONFIG.googleClientId,
       callback: handleCredential,
+      // Si el navegador ya tiene una sesión de Google usada antes en este sitio, refresca el
+      // login solo (sin que el usuario tenga que apretar el botón cada vez).
+      auto_select: true,
     });
-    renderSignedOut();
+
+    // Restaura la sesión guardada de entrada, sin esperar a Google: así no hay que volver a
+    // tocar el botón en cada visita. `prompt()` la refresca sola en segundo plano con un
+    // token nuevo si el navegador todavía tiene sesión de Google activa.
+    const cached = loadCachedUser();
+    if (cached) {
+      currentUser = cached;
+      renderSignedIn(currentUser);
+      // Se difiere: si `onChange` corriera ya (síncrono, acá adentro de initAuth), y ese
+      // callback depende de la variable a la que se asigna el resultado de initAuth(...)
+      // (como hace main.js con `const auth = initAuth(...)`), esa variable todavía no existe
+      // en ese punto exacto y revienta en silencio (promesa rechazada sin nadie que la vea).
+      Promise.resolve().then(() => onChange(currentUser));
+    } else {
+      renderSignedOut();
+    }
+    window.google.accounts.id.prompt();
   }
 
   if (window.google) {
