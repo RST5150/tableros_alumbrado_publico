@@ -69,6 +69,12 @@ function buildTableroMarker(row, def, isEditable) {
   // Función (no string fija): así el popup se recalcula cada vez que se abre y refleja el
   // permiso de edición vigente en ese momento, aunque haya cambiado desde que se cargó la capa.
   marker.bindPopup(() => pointPopupHtml(marker.tableroRow, isEditable(def.id)));
+  // Empieza cerrado: se abre solo por encima de cierto zoom (ver applyTableroLabelsVisibility),
+  // si no con ~2200 tableros el mapa quedaría ilegible de entrada.
+  if (row.Nombre) {
+    marker.bindTooltip(row.Nombre, { permanent: true, direction: 'top', offset: [0, -12], className: 'tablero-label' });
+    marker.closeTooltip();
+  }
   marker.tableroRow = row;
   marker.tableroDireccion = direccion(row);
   marker.tableroDef = def;
@@ -203,7 +209,20 @@ export async function buildMap(allowedIds, onEditRequest) {
     }
     applyLabelsVisibility();
     updateTablerosControlVisibility();
+    applyTableroLabelsVisibility();
   }
+
+  // Números de tablero: solo se muestran a partir de cierto zoom (con el mapa alejado, ~2200
+  // etiquetas superpuestas serían ilegibles). Se recalcula al hacer zoom.
+  const TABLERO_LABEL_MIN_ZOOM = 18;
+  function applyTableroLabelsVisibility() {
+    const show = map.getZoom() >= TABLERO_LABEL_MIN_ZOOM;
+    for (const { def, layer } of loaded) {
+      if (def.kind !== 'point') continue;
+      layer.eachLayer((marker) => (show ? marker.openTooltip() : marker.closeTooltip()));
+    }
+  }
+  map.on('zoomend', applyTableroLabelsVisibility);
 
   // Toggle de "Mostrar referencias": abre/cierra el tooltip permanente de cada polígono sin
   // afectar si la capa en sí está prendida o apagada.
@@ -275,6 +294,7 @@ export async function buildMap(allowedIds, onEditRequest) {
       if (marker.tableroRow?.Nombre === row.Nombre) entry.layer.removeLayer(marker);
     });
     buildTableroMarker(row, def, isEditable).addTo(entry.layer);
+    applyTableroLabelsVisibility();
   }
 
   applyVisibility(allowedIds);

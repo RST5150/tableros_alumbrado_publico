@@ -161,6 +161,24 @@ body {
   display: none;
 }
 
+/* Código de tablero, visible solo a partir de cierto zoom (ver applyTableroLabelsVisibility
+   en layers.js). Chico y pegado al ícono para no tapar los de al lado. */
+.tablero-label {
+  background: rgba(15, 23, 42, 0.85);
+  border: none;
+  box-shadow: none;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 10px;
+  color: #fff;
+  pointer-events: none;
+}
+
+.tablero-label::before {
+  display: none;
+}
+
 /* Toggle "Mostrar referencias", entre el cuadro de Zonas/Subzonas/Sectores y el de Tableros.
    Fondo oscuro (igual que la barra superior) y texto blanco a propósito, para diferenciarlo
    de los cuadros de capas (que quedan con el blanco por defecto de Leaflet). */
