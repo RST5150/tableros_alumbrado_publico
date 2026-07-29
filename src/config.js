@@ -23,10 +23,12 @@ export const CONFIG = {
 
   // Capas de puntos: se leen en vivo desde hojas de Google Sheets publicadas como CSV
   // (Archivo → Compartir → Publicar en la web). Ya migradas al Sheet "Mapa de Tableros - Datos".
+  // `icon`: mismo ícono que usaba cada zona en el mapa original de My Maps (extraído de los
+  // KMZ, en /public/icons). `color` queda como respaldo por si algún ícono no carga.
   pointLayers: [
-    { id: 'tableros_zona1', label: 'Tableros Zona 1', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1074267375&single=true&output=csv', color: '#dc2626' },
-    { id: 'tableros_zona2', label: 'Tableros Zona 2', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=169737162&single=true&output=csv', color: '#9333ea' },
-    { id: 'tableros_zona3', label: 'Tableros Zona 3', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1181186740&single=true&output=csv', color: '#0d9488' },
+    { id: 'tableros_zona1', label: 'Tableros Zona 1', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1074267375&single=true&output=csv', color: '#dc2626', icon: 'icons/tablero-zona1.png' },
+    { id: 'tableros_zona2', label: 'Tableros Zona 2', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=169737162&single=true&output=csv', color: '#9333ea', icon: 'icons/tablero-zona2.png' },
+    { id: 'tableros_zona3', label: 'Tableros Zona 3', url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1181186740&single=true&output=csv', color: '#0d9488', icon: 'icons/tablero-zona3.png' },
   ],
 
   // Capas visibles para cualquiera, sin necesidad de iniciar sesión.

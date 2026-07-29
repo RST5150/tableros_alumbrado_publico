@@ -39,17 +39,33 @@ function pointPopupHtml(row, editable) {
   `;
 }
 
+// Mismo ícono (rayo de color) que usaba cada zona en el mapa original de My Maps, extraído de
+// los KMZ. Se cachea una sola instancia por capa en vez de crear un L.icon por marcador.
+const tableroIconCache = new Map();
+function tableroIcon(def) {
+  if (!tableroIconCache.has(def.id)) {
+    tableroIconCache.set(
+      def.id,
+      L.icon({ iconUrl: def.icon, iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] })
+    );
+  }
+  return tableroIconCache.get(def.id);
+}
+
 // Reutilizable tanto al cargar el CSV inicial como al reflejar en el mapa un guardado hecho
 // desde el formulario (ver forms.js / upsertTablero más abajo).
 function buildTableroMarker(row, def, isEditable) {
-  const marker = L.circleMarker([parseFloat(row.Lat), parseFloat(row.Lon)], {
-    pane: 'tableros',
-    radius: 7,
-    color: def.color,
-    weight: 2,
-    fillColor: def.color,
-    fillOpacity: 0.85,
-  });
+  const latlng = [parseFloat(row.Lat), parseFloat(row.Lon)];
+  const marker = def.icon
+    ? L.marker(latlng, { pane: 'tableros', icon: tableroIcon(def) })
+    : L.circleMarker(latlng, {
+        pane: 'tableros',
+        radius: 7,
+        color: def.color,
+        weight: 2,
+        fillColor: def.color,
+        fillOpacity: 0.85,
+      });
   // Función (no string fija): así el popup se recalcula cada vez que se abre y refleja el
   // permiso de edición vigente en ese momento, aunque haya cambiado desde que se cargó la capa.
   marker.bindPopup(() => pointPopupHtml(marker.tableroRow, isEditable(def.id)));
