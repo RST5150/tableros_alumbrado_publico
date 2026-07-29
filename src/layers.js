@@ -135,6 +135,94 @@ async function loadPointLayer(def, isEditable) {
   return L.layerGroup(markers);
 }
 
+function isMobileDevice() {
+  return (
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches)
+  );
+}
+
+// Botón "Mi ubicación" estilo Google Maps: al tocarlo centra el mapa en la posición actual
+// (con zoom cómodo) y arranca (si no estaba corriendo) el watch en tiempo real del punto
+// azul. Las actualizaciones de posición NUNCA recentran el mapa solas — eso es solo al
+// volver a tocar el botón — para no pelear con el usuario mientras navega el mapa a mano.
+// En mobile arranca solo (mismo flujo que un click) apenas se crea el mapa.
+function initGeolocation(map) {
+  map.createPane('userlocation');
+  map.getPane('userlocation').style.zIndex = 700;
+
+  let marker = null;
+  let accuracyCircle = null;
+  let watching = false;
+  let btn = null;
+
+  function onLocationFound(e) {
+    if (!marker) {
+      marker = L.circleMarker(e.latlng, {
+        pane: 'userlocation',
+        radius: 8,
+        color: '#fff',
+        weight: 2,
+        fillColor: '#1a73e8',
+        fillOpacity: 1,
+      }).addTo(map);
+      accuracyCircle = L.circle(e.latlng, {
+        pane: 'userlocation',
+        radius: e.accuracy,
+        color: '#1a73e8',
+        weight: 1,
+        fillOpacity: 0.12,
+      }).addTo(map);
+    } else {
+      marker.setLatLng(e.latlng);
+      accuracyCircle.setLatLng(e.latlng).setRadius(e.accuracy);
+    }
+  }
+
+  function onLocationError(e) {
+    console.warn('No se pudo obtener la ubicación:', e.message);
+    // Sin fix previo (ej. permiso denegado): el watch nunca va a tener éxito, así que se
+    // corta y se destilda el botón en vez de dejarlo "activo" sin ubicación real.
+    if (!marker) {
+      watching = false;
+      btn?.classList.remove('active');
+      map.stopLocate();
+    }
+  }
+
+  map.on('locationfound', onLocationFound);
+  map.on('locationerror', onLocationError);
+
+  function locateAndCenter() {
+    if (!watching) {
+      watching = true;
+      btn?.classList.add('active');
+      map.locate({ watch: true, enableHighAccuracy: true, maximumAge: 10000 });
+    }
+    if (marker) {
+      map.setView(marker.getLatLng(), Math.max(map.getZoom(), 17));
+    } else {
+      map.once('locationfound', (e) => map.setView(e.latlng, Math.max(map.getZoom(), 17)));
+    }
+  }
+
+  const LocateControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      btn = L.DomUtil.create('button', 'locate-btn leaflet-bar');
+      btn.type = 'button';
+      btn.title = 'Mi ubicación';
+      btn.innerHTML = '📍';
+      L.DomEvent.disableClickPropagation(btn);
+      btn.addEventListener('click', locateAndCenter);
+      return btn;
+    },
+  });
+  new LocateControl().addTo(map);
+
+  if (isMobileDevice()) locateAndCenter();
+}
+
 // Crea el mapa, carga todas las capas definidas en CONFIG y arma el control de capas
 // mostrando solo las que están en `allowedIds`. Devuelve una función para refrescar
 // la visibilidad cuando cambian los permisos (login/logout).
@@ -147,6 +235,8 @@ export async function buildMap(allowedIds, onEditRequest) {
   // los tableros siempre se vean arriba sin importar el orden en que se activen las capas.
   map.createPane('tableros');
   map.getPane('tableros').style.zIndex = 650;
+
+  initGeolocation(map);
 
   // Solo mapas base gratuitos basados en datos de OpenStreetMap (sin API key).
   const baseLayers = {
