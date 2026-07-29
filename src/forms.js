@@ -199,6 +199,12 @@ export function initForms({ map, upsertTablero }) {
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando…';
+    // Apps Script puede tardar (o directamente no responder si el deploy quedó mal
+    // configurado); sin este límite, un fetch que nunca resuelve deja el botón trabado en
+    // "Guardando…" para siempre y sin ningún error visible.
+    const timeoutMs = 20000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       // Sin header de Content-Type a propósito: así el pedido queda como "simple request" y
       // no dispara un preflight CORS que Apps Script no sabe responder. El script igual lee
@@ -206,14 +212,20 @@ export function initForms({ map, upsertTablero }) {
       const res = await fetch(CONFIG.appsScriptUrl, {
         method: 'POST',
         body: JSON.stringify({ idToken: user.token, action: mode, zona: zonaId, data }),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
       upsertTablero(def, data);
       closePanel();
     } catch (err) {
-      showError(err.message || 'Error de red al guardar.');
+      if (err.name === 'AbortError') {
+        showError('El Apps Script no respondió a tiempo. Revisá que el deploy esté activo (ver README) y probá de nuevo.');
+      } else {
+        showError(err.message || 'Error de red al guardar.');
+      }
     } finally {
+      clearTimeout(timeout);
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar';
     }
