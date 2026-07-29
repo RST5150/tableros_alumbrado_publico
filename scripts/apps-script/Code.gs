@@ -61,11 +61,43 @@ function uploadPlano(body) {
   var bytes = Utilities.base64Decode(body.fileData);
   if (bytes.length > maxBytes) throw new Error('El archivo pesa más de 8 MB.');
 
+  markOldPlanoAsOld(body.zona, body.nombre);
+
   var safeName = [body.zona, body.nombre, body.fileName].filter(Boolean).join('_');
   var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', safeName);
   var file = getSectorFolder(body.zona, body.nombre).createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
+}
+
+// Si el tablero ya tenía un plano cargado, no lo borra: le agrega ".old" al nombre en Drive
+// para poder encontrarlos y limpiarlos a mano más adelante (Drive → buscar ".old").
+function markOldPlanoAsOld(zona, nombre) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(zona);
+  if (!sheet) return;
+
+  var nombreIdx = COLUMNS.indexOf('Nombre');
+  var planoIdx = COLUMNS.indexOf('Plano');
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][nombreIdx]).trim() !== String(nombre).trim()) continue;
+
+    var fileId = extractDriveFileId(values[i][planoIdx]);
+    if (!fileId) return;
+    try {
+      var oldFile = DriveApp.getFileById(fileId);
+      if (oldFile.getName().indexOf('.old') === -1) oldFile.setName(oldFile.getName() + '.old');
+    } catch (err) {
+      // El archivo puede haber sido borrado o movido a mano; no bloquea la subida del nuevo.
+    }
+    return;
+  }
+}
+
+function extractDriveFileId(url) {
+  if (!url) return null;
+  var match = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
 }
 
 // El código de tablero tiene el formato XYYXX: X = zona, YY = sector (siempre 2 dígitos),
