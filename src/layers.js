@@ -90,8 +90,9 @@ function buildTableroMarker(row, def, isEditable) {
   // permiso de edición vigente en ese momento, aunque haya cambiado desde que se cargó la capa.
   marker.bindPopup(() => pointPopupHtml(marker.tableroRow, isEditable(def.id)));
   // Empieza cerrado: se abre solo por encima de cierto zoom (ver applyTableroLabelsVisibility),
-  // si no con ~2200 tableros el mapa quedaría ilegible de entrada.
-  if (row.Nombre) {
+  // si no con ~2200 tableros el mapa quedaría ilegible de entrada. En mobile ni se bindea:
+  // con ~2200 tooltips (aunque cerrados) el dispositivo se ralentiza mucho.
+  if (row.Nombre && !isMobileDevice()) {
     marker.bindTooltip(row.Nombre, { permanent: true, direction: 'top', offset: [0, -12], className: 'tablero-label' });
     marker.closeTooltip();
   }
@@ -113,6 +114,9 @@ async function loadPolygonLayer(def) {
       fillOpacity: feature.properties?.fillOpacity ?? 0.25,
     }),
     onEachFeature: (feature, layer) => {
+      // En mobile no se bindea ningún tooltip: con ~200 polígonos (zonas+subzonas+sectores)
+      // ralentiza mucho la interfaz en dispositivos menos potentes.
+      if (isMobileDevice()) return;
       const name = feature.properties?.name;
       // Permanent (no sólo al pasar el mouse): muestra el número de zona/subzona/sector
       // siempre que esa capa esté prendida.
@@ -384,7 +388,9 @@ export async function buildMap(allowedIds, onEditRequest) {
       return container;
     },
   });
-  new LabelsToggle().addTo(map);
+  // En mobile no hay tooltips bindeados (ver loadPolygonLayer), así que el toggle no tendría
+  // ningún efecto: se omite en vez de mostrar un control que no hace nada.
+  if (!isMobileDevice()) new LabelsToggle().addTo(map);
 
   const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
   const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
