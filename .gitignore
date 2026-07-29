@@ -17,6 +17,10 @@ scripts/input/*.kml
 scripts/input/*.kmz
 scripts/output/
 
+# Shapefiles fuente de scripts/shp-convert.mjs (no van al repo, se regeneran desde QGIS)
+scripts/shp-input/*.shp
+scripts/shp-input/*.dbf
+
 # Datos reales de tableros (direcciones, etc.) mientras el repo sea público y no estén
 # migrados a Google Sheets. Quedan en disco para dev local pero no se suben.
 public/local-data/tableros_zona*.csv

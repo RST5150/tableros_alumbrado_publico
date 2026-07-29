@@ -6,9 +6,10 @@ datos editables desde Google Sheets/Drive, y capas visibles según el rol de cad
 
 ## Cómo está armado
 
-- **Zonas / Subzonas / Sectores** (polígonos): archivos `public/data/*.geojson`, ya generados
-  a partir de los KMZ reales exportados de My Maps (3 zonas, 23 subzonas, 174 sectores),
-  conservando el color de cada una. Cambian poco, así que quedan versionados en el repo.
+- **Zonas / Subzonas / Sectores** (polígonos): archivos `public/data/*.geojson`, generados con
+  `pnpm shp-convert` a partir de los shapefiles de QGIS (3 zonas, 23 subzonas, 174 sectores),
+  reproyectados a lat/lon y conservando el color de cada una. Cambian poco, así que quedan
+  versionados en el repo (ver "Actualizar límites..." más abajo para regenerarlos).
 - **Tableros Zona 1/2/3** (puntos): se leen en vivo desde hojas de Google Sheets publicadas
   como CSV. Así el equipo edita ubicaciones/datos desde Drive sin tocar código. **Por ahora**
   `src/config.js` apunta a `public/local-data/*.csv`, que son los datos reales ya convertidos
@@ -159,8 +160,27 @@ desde acá.
 
 ## Actualizar límites de Zonas/Subzonas/Sectores
 
-Si en el futuro cambian los límites, repetí el paso 1 (exportar KML/KMZ de esa capa, correr
-`pnpm kml-convert`) y hacé commit del `.geojson` actualizado.
+Desde que se migró a los shapefiles de QGIS, esta es la vía oficial (más precisa que exportar
+de nuevo desde My Maps):
+
+1. Exportá/copiá los 3 pares de archivos actualizados (`.shp` + `.dbf`) desde QGIS.
+2. Ponelos en `scripts/shp-input/` con estos nombres exactos: `zonas.shp`/`.dbf`,
+   `subzonas.shp`/`.dbf`, `sectores.shp`/`.dbf`.
+3. Corré:
+   ```bash
+   pnpm shp-convert
+   ```
+   Esto reproyecta las coordenadas (los shapefiles vienen en POSGAR 94 / Argentina 5, no en
+   lat/lon) y regenera `public/data/zonas.geojson`, `subzonas.geojson` y `sectores.geojson`,
+   manteniendo los mismos colores que ya tenía cada zona/subzona/sector.
+4. Hacé commit de los `.geojson` actualizados.
+
+Si en algún momento cambia el sistema de coordenadas de origen, hay que actualizar la constante
+`POSGAR94_ARG5` en `scripts/shp-convert.mjs` (se puede sacar del archivo `.prj` que acompaña al
+shapefile).
+
+(El método viejo, exportar KML/KMZ desde My Maps y correr `pnpm kml-convert`, sigue funcionando
+para los Tableros — ver paso 1 más arriba — pero ya no se usa para Zonas/Subzonas/Sectores.)
 
 ## Administrar quién ve/edita qué
 

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "kml-convert": "node scripts/kml-convert.mjs",
+    "shp-convert": "node scripts/shp-convert.mjs",
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
@@ -15,6 +16,8 @@
     "@xmldom/xmldom": "^0.9.10",
     "adm-zip": "^0.6.0",
     "gh-pages": "^6.3.0",
+    "proj4": "^2.21.0",
+    "shapefile": "^0.6.6",
     "vite": "^8.1.1"
   },
   "dependencies": {
