@@ -139,6 +139,14 @@ Cada vez que cambies el código de `Code.gs`, hay que volver a **Implementar →
 implementaciones → editar (lápiz) → Nueva versión** para que el cambio tenga efecto (la URL no
 cambia).
 
+**Subir planos desde el formulario**: además del campo de link, el formulario tiene un
+selector de archivo (PDF o imagen, máx. 8 MB) que sube el plano a una carpeta de Drive llamada
+"Planos - Mapa de Tableros" — se crea sola la primera vez, no hace falta prepararla a mano. El
+archivo queda compartido como "cualquiera con el link puede ver" (si no, el link no serviría
+para nada al abrirlo desde el popup del mapa). Como esto usa Drive además de Sheets, la
+**primera vez** que guardes con `Code.gs` actualizado Google va a pedir autorizar un permiso
+nuevo (acceso a Drive) — es un único paso, similar a cuando autorizaste el acceso a la planilla.
+
 **Nota**: al guardar, el tablero aparece en el mapa al instante (no espera al Sheet), pero el
 CSV publicado que ven el resto de los usuarios puede tardar unos minutos en reflejar el cambio
 — es el cacheo propio de "Publicar en la web" de Google Sheets, no algo que se pueda evitar

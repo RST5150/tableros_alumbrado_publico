@@ -1,8 +1,8 @@
 import L from 'leaflet';
 import { CONFIG } from './config.js';
 
-// Columnas reales del Sheet (además de Nombre/Lat/Lon, que se tratan aparte). Las claves
-// tienen que coincidir exactamente con los encabezados de las hojas tableros_zona*.
+// Columnas reales del Sheet (además de Nombre/Lat/Lon y Plano, que se tratan aparte). Las
+// claves tienen que coincidir exactamente con los encabezados de las hojas tableros_zona*.
 const FIELDS = [
   { key: 'Tipo', label: 'Tipo' },
   { key: 'Clasificación', label: 'Clasificación' },
@@ -12,11 +12,39 @@ const FIELDS = [
   { key: 'Letra', label: 'Letra' },
   { key: 'Bis', label: 'Bis' },
   { key: 'Responsable', label: 'Responsable' },
-  { key: 'Plano', label: 'Plano (link)' },
   { key: 'Foto Externa', label: 'Foto externa (link)' },
   { key: 'Foto Interna', label: 'Foto interna (link)' },
   { key: 'Última Inspección', label: 'Última inspección', type: 'date' },
 ];
+
+const MAX_PLANO_BYTES = 8 * 1024 * 1024;
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Sin header de Content-Type a propósito: así el pedido queda como "simple request" y no
+// dispara un preflight CORS que Apps Script no sabe responder. El script igual lee el body
+// como JSON sin importar el Content-Type declarado.
+async function postToScript(payload, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(CONFIG.appsScriptUrl, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function el(tag, className, html) {
   const node = document.createElement(tag);
@@ -59,6 +87,18 @@ function buildPanel() {
       </div>
       <button type="button" class="tablero-form-pick">Elegir ubicación en el mapa</button>
 
+      <label>
+        Plano
+        <input type="text" name="Plano" placeholder="Link (o subí un archivo abajo)" />
+      </label>
+      <div class="tablero-form-plano-upload">
+        <label class="tablero-form-file-label">
+          Subir plano nuevo (PDF o imagen, máx. 8 MB)
+          <input type="file" class="tablero-form-plano-file" accept="application/pdf,image/*" />
+        </label>
+        <span class="tablero-form-plano-status"></span>
+      </div>
+
       ${FIELDS.map(
         (f) => `
         <label>
@@ -95,7 +135,24 @@ export function initForms({ map, upsertTablero }) {
   const latInput = panel.querySelector('input[name=Lat]');
   const lonInput = panel.querySelector('input[name=Lon]');
   const pickBtn = panel.querySelector('.tablero-form-pick');
+  const planoInput = panel.querySelector('input[name=Plano]');
+  const planoFileInput = panel.querySelector('.tablero-form-plano-file');
+  const planoStatus = panel.querySelector('.tablero-form-plano-status');
   const saveBtn = panel.querySelector('.tablero-form-save');
+
+  planoFileInput.addEventListener('change', () => {
+    const file = planoFileInput.files[0];
+    if (!file) {
+      planoStatus.textContent = '';
+      return;
+    }
+    if (file.size > MAX_PLANO_BYTES) {
+      planoStatus.textContent = `"${file.name}" pesa más de 8 MB, elegí otro archivo.`;
+      planoFileInput.value = '';
+      return;
+    }
+    planoStatus.textContent = `Se va a subir "${file.name}" y va a reemplazar el link de arriba.`;
+  });
 
   function showError(message) {
     errorBox.textContent = message;
@@ -132,6 +189,7 @@ export function initForms({ map, upsertTablero }) {
     editingDef = opts.def || null;
     hideError();
     form.reset();
+    planoStatus.textContent = '';
 
     if (mode === 'create') {
       title.textContent = 'Nuevo tablero';
@@ -147,6 +205,7 @@ export function initForms({ map, upsertTablero }) {
       nombreInput.disabled = true;
       latInput.value = opts.row.Lat || '';
       lonInput.value = opts.row.Lon || '';
+      planoInput.value = opts.row.Plano || '';
       for (const f of FIELDS) {
         const input = form.querySelector(`[name="${CSS.escape(f.key)}"]`);
         if (input) input.value = opts.row[f.key] || '';
@@ -175,6 +234,7 @@ export function initForms({ map, upsertTablero }) {
       Nombre: nombreInput.value.trim(),
       Lat: latInput.value.trim(),
       Lon: lonInput.value.trim(),
+      Plano: planoInput.value.trim(),
     };
     for (const f of FIELDS) {
       data[f.key] = form.querySelector(`[name="${CSS.escape(f.key)}"]`).value.trim();
@@ -198,23 +258,33 @@ export function initForms({ map, upsertTablero }) {
     }
 
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Guardando…';
     // Apps Script puede tardar (o directamente no responder si el deploy quedó mal
-    // configurado); sin este límite, un fetch que nunca resuelve deja el botón trabado en
-    // "Guardando…" para siempre y sin ningún error visible.
+    // configurado); sin este límite, un fetch que nunca resuelve deja el botón trabado para
+    // siempre y sin ningún error visible.
     const timeoutMs = 20000;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Sin header de Content-Type a propósito: así el pedido queda como "simple request" y
-      // no dispara un preflight CORS que Apps Script no sabe responder. El script igual lee
-      // el body como JSON sin importar el Content-Type declarado.
-      const res = await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        body: JSON.stringify({ idToken: user.token, action: mode, zona: zonaId, data }),
-        signal: controller.signal,
-      });
-      const json = await res.json();
+      const planoFile = planoFileInput.files[0];
+      if (planoFile) {
+        saveBtn.textContent = 'Subiendo plano…';
+        const fileData = await fileToBase64(planoFile);
+        const uploadJson = await postToScript(
+          {
+            idToken: user.token,
+            action: 'uploadFile',
+            zona: zonaId,
+            nombre: data.Nombre,
+            fileName: planoFile.name,
+            mimeType: planoFile.type,
+            fileData,
+          },
+          timeoutMs
+        );
+        if (!uploadJson.ok) throw new Error(uploadJson.error || 'No se pudo subir el plano.');
+        data.Plano = uploadJson.url;
+      }
+
+      saveBtn.textContent = 'Guardando…';
+      const json = await postToScript({ idToken: user.token, action: mode, zona: zonaId, data }, timeoutMs);
       if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
       upsertTablero(def, data);
       closePanel();
@@ -225,7 +295,6 @@ export function initForms({ map, upsertTablero }) {
         showError(err.message || 'Error de red al guardar.');
       }
     } finally {
-      clearTimeout(timeout);
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar';
     }

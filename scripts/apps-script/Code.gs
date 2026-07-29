@@ -22,6 +22,10 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'No tenés permiso para editar tableros de esa zona.' });
     }
 
+    if (body.action === 'uploadFile') {
+      return jsonResponse({ ok: true, url: uploadPlano(body) });
+    }
+
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.zona);
     if (!sheet) return jsonResponse({ ok: false, error: 'No existe la hoja "' + body.zona + '".' });
 
@@ -37,6 +41,29 @@ function doPost(e) {
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err.message || err) });
   }
+}
+
+// Sube el plano a una carpeta de Drive (se crea sola la primera vez) y devuelve el link para
+// guardar en la columna "Plano". El archivo queda visible para "cualquiera con el link" —
+// si no, el link no serviría para nada al abrirlo desde el popup del mapa.
+function uploadPlano(body) {
+  if (!body.fileData || !body.fileName) throw new Error('Falta el archivo a subir.');
+
+  var maxBytes = 8 * 1024 * 1024;
+  var bytes = Utilities.base64Decode(body.fileData);
+  if (bytes.length > maxBytes) throw new Error('El archivo pesa más de 8 MB.');
+
+  var safeName = [body.zona, body.nombre, body.fileName].filter(Boolean).join('_');
+  var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', safeName);
+  var file = getOrCreatePlanosFolder().createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return file.getUrl();
+}
+
+function getOrCreatePlanosFolder() {
+  var name = 'Planos - Mapa de Tableros';
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
 }
 
 // Valida el JWT de Google Sign-In contra los servidores de Google (no confía en el email que
