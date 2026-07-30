@@ -242,10 +242,23 @@ export async function buildMap(allowedIds, onEditRequest) {
 
   initGeolocation(map);
 
-  // Solo mapas base gratuitos basados en datos de OpenStreetMap (sin API key).
+  // Solo mapas base gratuitos, sin API key (CartoDB y Esri World Imagery tienen términos de
+  // "uso liviano" — no pensados para tráfico masivo, pero de sobra para esta app interna).
   const baseLayers = {
     Callejero: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 20,
+    }),
+    Claro: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+    }),
+    Voyager: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
       maxZoom: 20,
     }),
     Oscuro: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -260,6 +273,14 @@ export async function buildMap(allowedIds, onEditRequest) {
       maxZoom: 20,
       maxNativeZoom: 17,
     }),
+    Satelital: L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        attribution:
+          'Tiles &copy; <a href="https://www.esri.com">Esri</a> — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+        maxZoom: 19,
+      }
+    ),
   };
   const initialBase = prefs.baseLayer && baseLayers[prefs.baseLayer] ? prefs.baseLayer : 'Callejero';
   baseLayers[initialBase].addTo(map);
@@ -304,8 +325,9 @@ export async function buildMap(allowedIds, onEditRequest) {
 
   const loaded = entries.filter(Boolean);
 
-  // Dos cuadros separados: uno para Zonas/Subzonas/Sectores y otro para los Tableros
-  // (el toggle de números, más abajo, queda apilado entre los dos).
+  // Dos cuadros separados: uno para Zonas/Subzonas/Sectores y otro para los Tableros (este
+  // primero, el toggle "Mostrar referencias" queda apilado después/abajo de los dos — ver
+  // dónde se agrega tablerosControl más abajo).
   const polygonControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
 
   // Guarda qué capas tilda/destilda el usuario a mano, para restaurarlo en la próxima visita
@@ -345,10 +367,11 @@ export async function buildMap(allowedIds, onEditRequest) {
   }
 
   // Números de tablero: solo se muestran a partir de cierto zoom (con el mapa alejado, ~2200
-  // etiquetas superpuestas serían ilegibles). Se recalcula al hacer zoom.
+  // etiquetas superpuestas serían ilegibles), y solo si "Mostrar referencias" está tildado
+  // (ver labelsVisible más abajo). Se recalcula al hacer zoom.
   const TABLERO_LABEL_MIN_ZOOM = 18;
   function applyTableroLabelsVisibility() {
-    const show = map.getZoom() >= TABLERO_LABEL_MIN_ZOOM;
+    const show = labelsVisible && map.getZoom() >= TABLERO_LABEL_MIN_ZOOM;
     for (const { def, layer } of loaded) {
       if (def.kind !== 'point') continue;
       layer.eachLayer((marker) => (show ? marker.openTooltip() : marker.closeTooltip()));
@@ -384,16 +407,21 @@ export async function buildMap(allowedIds, onEditRequest) {
         prefs.labelsVisible = labelsVisible;
         savePrefs(prefs);
         applyLabelsVisibility();
+        applyTableroLabelsVisibility();
       });
       return container;
     },
   });
+
+  // Se agrega antes que el toggle "Mostrar referencias" para que el cuadro de Tableros quede
+  // apilado arriba de ese toggle (Leaflet apila los controles de una misma esquina en el orden
+  // en que se van agregando al mapa).
+  const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
+  const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
+
   // En mobile no hay tooltips bindeados (ver loadPolygonLayer), así que el toggle no tendría
   // ningún efecto: se omite en vez de mostrar un control que no hace nada.
   if (!isMobileDevice()) new LabelsToggle().addTo(map);
-
-  const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
-  const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
 
   // El cuadro de Tableros no debe verse cuando no hay ninguna capa de tableros habilitada
   // (usuario sin loguear, o logueado sin permiso a ninguna zona de tableros).
