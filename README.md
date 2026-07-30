@@ -174,6 +174,17 @@ CSV publicado que ven el resto de los usuarios puede tardar unos minutos en refl
 — es el cacheo propio de "Publicar en la web" de Google Sheets, no algo que se pueda evitar
 desde acá.
 
+**Historial (quién cambió qué)**: cada alta o edición hecha desde el formulario queda
+registrada en una hoja **Historial** del mismo Sheet maestro, con columnas `Fecha, Email, Zona,
+Tablero, Acción, Cambios` — en una edición, `Cambios` lista solo los campos que efectivamente
+cambiaron (ej. `Responsable: "Juan" -> "Pedro"; Última Inspección: "" -> "2026-07-30"`); en un
+alta, lista los campos con los que se creó el tablero. La hoja se crea sola la primera vez que
+hace falta (no requiere ningún paso manual), y al no publicarse como CSV, solo la ve quien
+tenga acceso de Editor/Viewer al Sheet real (no queda expuesta en el sitio público). Si ya
+tenías el Apps Script instalado de antes, hay que actualizar `Code.gs` con la versión de este
+repo y volver a **Implementar → Gestionar implementaciones → Nueva versión** (ver paso 5) para
+que empiece a registrar.
+
 ## Actualizar límites de Zonas/Subzonas/Sectores
 
 Desde que se migró a los shapefiles de QGIS, esta es la vía oficial (más precisa que exportar

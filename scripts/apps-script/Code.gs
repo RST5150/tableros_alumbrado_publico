@@ -34,8 +34,10 @@ function doPost(e) {
 
     if (body.action === 'create') {
       createRow(sheet, body.data);
+      logHistorial(email, body.zona, body.data.Nombre, 'Alta', resumenAlta(body.data));
     } else if (body.action === 'update') {
-      updateRow(sheet, body.data);
+      var cambios = updateRow(sheet, body.data);
+      logHistorial(email, body.zona, body.data.Nombre, 'Edición', cambios);
     } else {
       return jsonResponse({ ok: false, error: 'Acción inválida.' });
     }
@@ -262,17 +264,65 @@ function createRow(sheet, data) {
   sheet.appendRow(COLUMNS.map(function (col) { return data[col] || ''; }));
 }
 
+// Devuelve el detalle de qué campos cambiaron (ver diffRows), para que quede registrado en la
+// hoja "Historial" (ver logHistorial) quién editó qué.
 function updateRow(sheet, data) {
   var nombreIdx = COLUMNS.indexOf('Nombre');
   var values = sheet.getDataRange().getValues();
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][nombreIdx]).trim() === String(data.Nombre).trim()) {
-      var row = COLUMNS.map(function (col) { return data[col] || ''; });
-      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
-      return;
+      var oldRow = values[i];
+      var newRow = COLUMNS.map(function (col) { return data[col] || ''; });
+      sheet.getRange(i + 1, 1, 1, newRow.length).setValues([newRow]);
+      return diffRows(oldRow, newRow);
     }
   }
   throw new Error('No se encontró ningún tablero con el código "' + data.Nombre + '" en esta zona.');
+}
+
+// Compara columna por columna (mismo orden que COLUMNS) y arma un texto tipo
+// 'Responsable: "Juan" -> "Pedro"; ...' con los campos que efectivamente cambiaron.
+function diffRows(oldRow, newRow) {
+  var changes = [];
+  for (var i = 0; i < COLUMNS.length; i++) {
+    var before = String(oldRow[i] || '').trim();
+    var after = String(newRow[i] || '').trim();
+    if (before !== after) {
+      changes.push(COLUMNS[i] + ': "' + before + '" -> "' + after + '"');
+    }
+  }
+  return changes.length ? changes.join('; ') : '(sin cambios)';
+}
+
+// Mismo formato que diffRows pero para un alta (no hay "antes"): lista los campos que se
+// completaron.
+function resumenAlta(data) {
+  return COLUMNS.filter(function (col) { return data[col]; })
+    .map(function (col) { return col + ': "' + data[col] + '"'; })
+    .join('; ');
+}
+
+// Hoja "Historial" (blame): una fila por cada alta/edición, con quién y qué cambió. Se crea
+// sola la primera vez que hace falta (no requiere setup manual en el Sheet). Si falla el
+// logueo (ej. hoja bloqueada), no debe tirar abajo el guardado real del tablero — por eso
+// doPost no llama esto directo, sino a través de este wrapper con try/catch.
+function logHistorial(email, zona, nombre, accion, detalle) {
+  try {
+    var sheet = getOrCreateHistorialSheet();
+    sheet.appendRow([new Date(), email, zona, nombre, accion, detalle]);
+  } catch (err) {
+    // No se re-lanza: perder una línea de historial no debería impedir que el tablero se guarde.
+  }
+}
+
+function getOrCreateHistorialSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Historial');
+  if (!sheet) {
+    sheet = ss.insertSheet('Historial');
+    sheet.appendRow(['Fecha', 'Email', 'Zona', 'Tablero', 'Acción', 'Cambios']);
+  }
+  return sheet;
 }
 
 function jsonResponse(obj) {
