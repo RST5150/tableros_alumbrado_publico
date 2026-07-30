@@ -3,6 +3,17 @@ import L from 'leaflet';
 const MAX_RESULTS = 8;
 const SEARCH_ICON = `<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>`;
 
+// Ícono propio (SVG inline) en vez del marcador default de Leaflet: ese default referencia
+// imágenes por una ruta relativa que se rompe al empaquetar con Vite y queda invisible — mismo
+// motivo por el que los tableros ya usan íconos propios (public/icons/) en vez del default.
+const ADDRESS_PIN_ICON = L.divIcon({
+  className: 'address-pin',
+  html: '<svg viewBox="0 0 24 24" width="32" height="32"><path fill="#ea4335" stroke="#fff" stroke-width="1" d="M12 2C7.58 2 4 5.58 4 10c0 5.25 6.72 11.19 7 11.44a1 1 0 0 0 1.3 0C12.28 21.19 20 15.25 20 10c0-4.42-3.58-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>',
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
+
 // Geocodifica direcciones reales (estilo Google Maps: "Calle 1234" te acerca ahí exista o no
 // un tablero) contra Nominatim (OpenStreetMap) — gratis, sin API key, mismo criterio que los
 // mapas base. Se sesga a Rosario (donde está todo el mapa) para evitar calles homónimas de
@@ -124,7 +135,7 @@ export function initSearch(map, getSearchableTableros) {
 
         if (match.kind === 'address') {
           clearAddressMarker();
-          addressMarker = L.marker([match.lat, match.lon]).addTo(map);
+          addressMarker = L.marker([match.lat, match.lon], { icon: ADDRESS_PIN_ICON }).addTo(map);
           const targetZoom = Math.max(map.getZoom(), 17);
           map.flyTo([match.lat, match.lon], targetZoom, { duration: 0.6 });
           return;
