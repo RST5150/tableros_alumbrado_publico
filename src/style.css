@@ -224,14 +224,47 @@ body {
   }
 }
 
+/* Botón para ocultar/mostrar de una los cuadros de capas (mapas base, Zonas/Subzonas/
+   Sectores, Tableros y "Mostrar referencias"). .active = capas ocultas en este momento. */
+.layers-panels-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.layers-panels-btn.active {
+  background: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .layers-panels-btn {
+    background: #2a2b31;
+  }
+}
+
 /* Buscador estilo "Buscar en el mapa" de Google My Maps: caja blanca con lupa y un
-   desplegable de resultados debajo, arriba a la izquierda del mapa. */
+   desplegable de resultados debajo, centrado arriba del mapa. No es un L.Control de esquina
+   (ver search.js) — se cuelga directo de #map (position: relative) para poder centrarlo con
+   left: 50% / translateX sin desalinear los controles de las 4 esquinas de Leaflet. */
 .map-search {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
   width: 280px;
-  max-width: calc(100vw - 90px);
-  border-radius: 8px !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
-  border: none !important;
+  max-width: calc(100vw - 24px);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  border: none;
   background: #fff;
   font: 14px/1.3 system-ui, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;

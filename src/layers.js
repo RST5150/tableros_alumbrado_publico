@@ -242,6 +242,27 @@ export async function buildMap(allowedIds, onEditRequest) {
 
   initGeolocation(map);
 
+  // Botón para ocultar/mostrar de una los cuadros de capas (mapas base, Zonas/Subzonas/
+  // Sectores, Tableros y "Mostrar referencias") — útil en mobile, donde ocupan bastante
+  // espacio. Se agrega primero para quedar siempre arriba del resto en esta esquina, incluso
+  // con los demás ocultos; el click y el resto del cableado se terminan de armar más abajo,
+  // una vez que existen esos controles (ver applyLayersPanelsVisibility).
+  let layersBtn = null;
+  let layersPanelsHidden = prefs.layersPanelsHidden === true;
+  const LayersPanelsToggle = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      layersBtn = L.DomUtil.create('button', 'layers-panels-btn leaflet-bar');
+      layersBtn.type = 'button';
+      layersBtn.title = 'Mostrar/ocultar capas';
+      layersBtn.innerHTML = '👁️';
+      layersBtn.classList.toggle('active', layersPanelsHidden);
+      L.DomEvent.disableClickPropagation(layersBtn);
+      return layersBtn;
+    },
+  });
+  new LayersPanelsToggle().addTo(map);
+
   // Solo mapas base gratuitos, sin API key (CartoDB y Esri World Imagery tienen términos de
   // "uso liviano" — no pensados para tráfico masivo, pero de sobra para esta app interna).
   const baseLayers = {
@@ -284,7 +305,7 @@ export async function buildMap(allowedIds, onEditRequest) {
   };
   const initialBase = prefs.baseLayer && baseLayers[prefs.baseLayer] ? prefs.baseLayer : 'Callejero';
   baseLayers[initialBase].addTo(map);
-  L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
+  const baseLayersControl = L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
   map.on('baselayerchange', (e) => {
     prefs.baseLayer = e.name;
     savePrefs(prefs);
@@ -421,15 +442,34 @@ export async function buildMap(allowedIds, onEditRequest) {
 
   // En mobile no hay tooltips bindeados (ver loadPolygonLayer), así que el toggle no tendría
   // ningún efecto: se omite en vez de mostrar un control que no hace nada.
-  if (!isMobileDevice()) new LabelsToggle().addTo(map);
+  const labelsToggleControl = isMobileDevice() ? null : new LabelsToggle().addTo(map);
 
   // El cuadro de Tableros no debe verse cuando no hay ninguna capa de tableros habilitada
-  // (usuario sin loguear, o logueado sin permiso a ninguna zona de tableros).
+  // (usuario sin loguear, o logueado sin permiso a ninguna zona de tableros), ni cuando el
+  // botón de ocultar capas está activo.
   let visiblePointLayers = 0;
   function updateTablerosControlVisibility() {
-    tablerosControl.getContainer().style.display = visiblePointLayers > 0 ? '' : 'none';
+    tablerosControl.getContainer().style.display = visiblePointLayers > 0 && !layersPanelsHidden ? '' : 'none';
   }
   updateTablerosControlVisibility();
+
+  // Termina de armar el botón de ocultar/mostrar capas (layersBtn), ahora que ya existen
+  // todos los controles que tiene que tapar.
+  function applyLayersPanelsVisibility() {
+    const display = layersPanelsHidden ? 'none' : '';
+    baseLayersControl.getContainer().style.display = display;
+    polygonControl.getContainer().style.display = display;
+    if (labelsToggleControl) labelsToggleControl.getContainer().style.display = display;
+    updateTablerosControlVisibility();
+  }
+  layersBtn.addEventListener('click', () => {
+    layersPanelsHidden = !layersPanelsHidden;
+    prefs.layersPanelsHidden = layersPanelsHidden;
+    savePrefs(prefs);
+    layersBtn.classList.toggle('active', layersPanelsHidden);
+    applyLayersPanelsVisibility();
+  });
+  applyLayersPanelsVisibility();
 
   // Índice para el buscador: solo tableros de capas que el usuario actual puede ver
   // (evita que se pueda buscar/ubicar un tablero al que no se tiene acceso).

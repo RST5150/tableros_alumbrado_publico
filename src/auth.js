@@ -11,12 +11,26 @@ function decodeJwt(token) {
 }
 
 // Sesión persistida en el navegador: al recargar la página (o volver otro día) se restaura
-// de inmediato sin esperar a Google, y mientras tanto el "auto sign-in" de Google (más abajo)
-// la refresca en segundo plano con un token nuevo. Si ese refresco silencioso falla (se cerró
-// la sesión de Google, cookies de terceros bloqueadas, etc.), el usuario sigue viendo sus
-// capas con el último token conocido — si intenta guardar algo con un token vencido, el Apps
-// Script lo rechaza y se le pide reloguearse (ver forms.js).
+// de inmediato sin esperar a Google. Solo se le pide un refresh a Google (ver isTokenFresh en
+// start()) cuando el token cacheado ya está por vencer — mientras siga vigente, la sesión
+// "dura" sin que aparezca ningún cartel de Google pidiendo iniciar sesión de nuevo. Si el
+// refresco falla (se cerró la sesión de Google, cookies de terceros bloqueadas, etc.), el
+// usuario sigue viendo sus capas con el último token conocido — si intenta guardar algo con un
+// token ya vencido, el Apps Script lo rechaza y se le pide reloguearse (ver forms.js).
 const STORAGE_KEY = 'mapa-tableros-auth';
+
+// Margen antes del vencimiento real del token para considerarlo "por vencer" y pedir un
+// refresh, en vez de esperar a que ya haya vencido.
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+function isTokenFresh(token) {
+  try {
+    const { exp } = decodeJwt(token);
+    return typeof exp === 'number' && exp * 1000 - TOKEN_REFRESH_BUFFER_MS > Date.now();
+  } catch {
+    return false;
+  }
+}
 
 function loadCachedUser() {
   try {
@@ -151,8 +165,7 @@ export function initAuth(onChange) {
     });
 
     // Restaura la sesión guardada de entrada, sin esperar a Google: así no hay que volver a
-    // tocar el botón en cada visita. `prompt()` la refresca sola en segundo plano con un
-    // token nuevo si el navegador todavía tiene sesión de Google activa.
+    // tocar el botón en cada visita.
     const cached = loadCachedUser();
     if (cached) {
       currentUser = cached;
@@ -165,7 +178,12 @@ export function initAuth(onChange) {
     } else {
       renderSignedOut();
     }
-    window.google.accounts.id.prompt();
+    // `prompt()` puede mostrar un cartel de Google si el refresco silencioso falla — por eso
+    // solo se llama cuando hace falta (sin sesión cacheada, o con el token cacheado por
+    // vencer), y no en cada recarga mientras la sesión siga siendo válida.
+    if (!cached || !isTokenFresh(cached.token)) {
+      window.google.accounts.id.prompt();
+    }
   }
 
   if (window.google) {

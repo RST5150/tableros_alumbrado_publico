@@ -65,172 +65,168 @@ function resultLabel(match) {
   return { title: codigo, subtitle: match.direccion || match.row?.Calle || '' };
 }
 
-// Control de mapa estilo "Buscar en el mapa" de Google My Maps: caja blanca con lupa arriba
-// a la izquierda y un desplegable de resultados a medida que se escribe. Busca por código
+// Buscador estilo "Buscar en el mapa" de Google My Maps: caja blanca con lupa, centrada
+// arriba del mapa, con un desplegable de resultados a medida que se escribe. Busca por código
 // (Nombre) y por dirección (Calle/Altura/Letra/Bis) entre los tableros que el usuario puede ver,
 // y en paralelo geocodifica la dirección tipeada (ver geocodeAddress) para poder ir a
 // cualquier dirección real del mapa, tenga o no un tablero.
+//
+// Se cuelga directo del contenedor del mapa (no de un L.Control de esquina): así se puede
+// centrar horizontalmente arriba del todo con CSS, algo que el sistema de 4 esquinas de
+// Leaflet no permite hacer para un único control sin desalinear a los demás que comparten esa
+// esquina.
 export function initSearch(map, getSearchableTableros) {
-  const SearchControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd() {
-      const container = L.DomUtil.create('div', 'map-search leaflet-bar');
-      container.innerHTML = `
-        <div class="map-search-box">
-          <span class="map-search-icon">${SEARCH_ICON}</span>
-          <input type="text" placeholder="Buscar por código o dirección" autocomplete="off" />
-          <button type="button" class="map-search-clear" aria-label="Limpiar" hidden>&times;</button>
-        </div>
-        <ul class="map-search-results" hidden></ul>
-      `;
-      L.DomEvent.disableClickPropagation(container);
-      L.DomEvent.disableScrollPropagation(container);
+  const container = L.DomUtil.create('div', 'map-search', map.getContainer());
+  container.innerHTML = `
+    <div class="map-search-box">
+      <span class="map-search-icon">${SEARCH_ICON}</span>
+      <input type="text" placeholder="Buscar por código o dirección" autocomplete="off" />
+      <button type="button" class="map-search-clear" aria-label="Limpiar" hidden>&times;</button>
+    </div>
+    <ul class="map-search-results" hidden></ul>
+  `;
+  L.DomEvent.disableClickPropagation(container);
+  L.DomEvent.disableScrollPropagation(container);
 
-      const input = container.querySelector('input');
-      const clearBtn = container.querySelector('.map-search-clear');
-      const resultsEl = container.querySelector('.map-search-results');
-      let matches = [];
-      let activeIndex = -1;
-      let geocodeTimer = null;
-      let geocodeSeq = 0;
-      let addressMarker = null;
+  const input = container.querySelector('input');
+  const clearBtn = container.querySelector('.map-search-clear');
+  const resultsEl = container.querySelector('.map-search-results');
+  let matches = [];
+  let activeIndex = -1;
+  let geocodeTimer = null;
+  let geocodeSeq = 0;
+  let addressMarker = null;
 
-      function clearAddressMarker() {
-        if (addressMarker) {
-          map.removeLayer(addressMarker);
-          addressMarker = null;
-        }
-      }
+  function clearAddressMarker() {
+    if (addressMarker) {
+      map.removeLayer(addressMarker);
+      addressMarker = null;
+    }
+  }
 
-      function closeResults() {
-        resultsEl.hidden = true;
-        resultsEl.innerHTML = '';
-        matches = [];
-        activeIndex = -1;
-      }
+  function closeResults() {
+    resultsEl.hidden = true;
+    resultsEl.innerHTML = '';
+    matches = [];
+    activeIndex = -1;
+  }
 
-      function renderResults() {
-        if (matches.length === 0) {
-          resultsEl.hidden = true;
-          resultsEl.innerHTML = '';
-          return;
-        }
-        resultsEl.hidden = false;
-        resultsEl.innerHTML = matches
-          .map((m, i) => {
-            const { title, subtitle } = resultLabel(m);
-            return `<li data-index="${i}" class="${i === activeIndex ? 'active' : ''}">
-              <span class="map-search-result-title">${title}</span>
-              ${subtitle ? `<span class="map-search-result-subtitle">${subtitle}</span>` : ''}
-            </li>`;
-          })
-          .join('');
-      }
+  function renderResults() {
+    if (matches.length === 0) {
+      resultsEl.hidden = true;
+      resultsEl.innerHTML = '';
+      return;
+    }
+    resultsEl.hidden = false;
+    resultsEl.innerHTML = matches
+      .map((m, i) => {
+        const { title, subtitle } = resultLabel(m);
+        return `<li data-index="${i}" class="${i === activeIndex ? 'active' : ''}">
+          <span class="map-search-result-title">${title}</span>
+          ${subtitle ? `<span class="map-search-result-subtitle">${subtitle}</span>` : ''}
+        </li>`;
+      })
+      .join('');
+  }
 
-      function selectMatch(match) {
-        if (!match) return;
-        closeResults();
-        input.value = resultLabel(match).title;
-        clearBtn.hidden = false;
+  function selectMatch(match) {
+    if (!match) return;
+    closeResults();
+    input.value = resultLabel(match).title;
+    clearBtn.hidden = false;
 
-        if (match.kind === 'address') {
-          clearAddressMarker();
-          addressMarker = L.marker([match.lat, match.lon], { icon: ADDRESS_PIN_ICON }).addTo(map);
-          const targetZoom = Math.max(map.getZoom(), 17);
-          map.flyTo([match.lat, match.lon], targetZoom, { duration: 0.6 });
-          return;
-        }
+    if (match.kind === 'address') {
+      clearAddressMarker();
+      addressMarker = L.marker([match.lat, match.lon], { icon: ADDRESS_PIN_ICON }).addTo(map);
+      const targetZoom = Math.max(map.getZoom(), 17);
+      map.flyTo([match.lat, match.lon], targetZoom, { duration: 0.6 });
+      return;
+    }
 
-        clearAddressMarker();
-        if (!map.hasLayer(match.layerGroup)) match.layerGroup.addTo(map);
-        const targetZoom = Math.max(map.getZoom(), 18);
-        // Duración corta y fija: con flyTo por defecto el "vuelo" puede sentirse lento en
-        // distancias largas. Se abre el popup apenas termina de moverse (y también de
-        // inmediato, por si el destino coincide con la vista actual y "moveend" no dispara).
-        map.flyTo(match.marker.getLatLng(), targetZoom, { duration: 0.6 });
-        map.once('moveend', () => match.marker.openPopup());
-        match.marker.openPopup();
-      }
+    clearAddressMarker();
+    if (!map.hasLayer(match.layerGroup)) match.layerGroup.addTo(map);
+    const targetZoom = Math.max(map.getZoom(), 18);
+    // Duración corta y fija: con flyTo por defecto el "vuelo" puede sentirse lento en
+    // distancias largas. Se abre el popup apenas termina de moverse (y también de
+    // inmediato, por si el destino coincide con la vista actual y "moveend" no dispara).
+    map.flyTo(match.marker.getLatLng(), targetZoom, { duration: 0.6 });
+    map.once('moveend', () => match.marker.openPopup());
+    match.marker.openPopup();
+  }
 
-      function runSearch() {
-        const rawQuery = input.value.trim();
-        clearBtn.hidden = rawQuery.length === 0;
-        const q = normalize(rawQuery);
-        if (geocodeTimer) clearTimeout(geocodeTimer);
+  function runSearch() {
+    const rawQuery = input.value.trim();
+    clearBtn.hidden = rawQuery.length === 0;
+    const q = normalize(rawQuery);
+    if (geocodeTimer) clearTimeout(geocodeTimer);
 
-        if (q.length < 2) {
-          geocodeSeq++; // invalida cualquier geocodificación en vuelo
-          closeResults();
-          return;
-        }
+    if (q.length < 2) {
+      geocodeSeq++; // invalida cualquier geocodificación en vuelo
+      closeResults();
+      return;
+    }
 
-        const all = getSearchableTableros();
-        matches = all
-          .filter((m) => normalize(m.row?.Nombre).includes(q) || normalize(m.direccion).includes(q))
-          .slice(0, MAX_RESULTS)
-          .map((m) => ({ kind: 'tablero', ...m }));
-        activeIndex = -1;
-        renderResults();
+    const all = getSearchableTableros();
+    matches = all
+      .filter((m) => normalize(m.row?.Nombre).includes(q) || normalize(m.direccion).includes(q))
+      .slice(0, MAX_RESULTS)
+      .map((m) => ({ kind: 'tablero', ...m }));
+    activeIndex = -1;
+    renderResults();
 
-        if (q.length < GEOCODE_MIN_CHARS) {
-          geocodeSeq++;
-          return;
-        }
-        const seq = ++geocodeSeq;
-        geocodeTimer = setTimeout(async () => {
-          const result = await geocodeAddress(rawQuery);
-          // La búsqueda cambió mientras esperábamos la respuesta, o no hubo resultado: se
-          // descarta (evita pisar resultados más nuevos con uno que tardó más en volver).
-          if (seq !== geocodeSeq || !result) return;
-          matches = [...matches, result].slice(0, MAX_RESULTS + 1);
-          renderResults();
-        }, GEOCODE_DEBOUNCE_MS);
-      }
+    if (q.length < GEOCODE_MIN_CHARS) {
+      geocodeSeq++;
+      return;
+    }
+    const seq = ++geocodeSeq;
+    geocodeTimer = setTimeout(async () => {
+      const result = await geocodeAddress(rawQuery);
+      // La búsqueda cambió mientras esperábamos la respuesta, o no hubo resultado: se
+      // descarta (evita pisar resultados más nuevos con uno que tardó más en volver).
+      if (seq !== geocodeSeq || !result) return;
+      matches = [...matches, result].slice(0, MAX_RESULTS + 1);
+      renderResults();
+    }, GEOCODE_DEBOUNCE_MS);
+  }
 
-      input.addEventListener('input', runSearch);
-      input.addEventListener('focus', () => {
-        if (input.value.length >= 2) runSearch();
-      });
-
-      input.addEventListener('keydown', (e) => {
-        if (resultsEl.hidden) return;
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          activeIndex = Math.min(activeIndex + 1, matches.length - 1);
-          renderResults();
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          activeIndex = Math.max(activeIndex - 1, 0);
-          renderResults();
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          selectMatch(matches[activeIndex] ?? matches[0]);
-        } else if (e.key === 'Escape') {
-          closeResults();
-        }
-      });
-
-      resultsEl.addEventListener('click', (e) => {
-        const li = e.target.closest('li');
-        if (!li) return;
-        selectMatch(matches[Number(li.dataset.index)]);
-      });
-
-      clearBtn.addEventListener('click', () => {
-        input.value = '';
-        clearBtn.hidden = true;
-        closeResults();
-        clearAddressMarker();
-        input.focus();
-      });
-
-      document.addEventListener('click', (e) => {
-        if (!container.contains(e.target)) closeResults();
-      });
-
-      return container;
-    },
+  input.addEventListener('input', runSearch);
+  input.addEventListener('focus', () => {
+    if (input.value.length >= 2) runSearch();
   });
 
-  new SearchControl().addTo(map);
+  input.addEventListener('keydown', (e) => {
+    if (resultsEl.hidden) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, matches.length - 1);
+      renderResults();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      renderResults();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      selectMatch(matches[activeIndex] ?? matches[0]);
+    } else if (e.key === 'Escape') {
+      closeResults();
+    }
+  });
+
+  resultsEl.addEventListener('click', (e) => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    selectMatch(matches[Number(li.dataset.index)]);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    clearBtn.hidden = true;
+    closeResults();
+    clearAddressMarker();
+    input.focus();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) closeResults();
+  });
 }
