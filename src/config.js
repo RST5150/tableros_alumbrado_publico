@@ -4,7 +4,7 @@
 export const CONFIG = {
   // Google Cloud Console → APIs & Services → Credentials → OAuth Client ID (tipo "Web application").
   googleClientId:
-    "773871451768-tlm5c75mea4ac8lehtoorvnhpgdsli2v.apps.googleusercontent.com",
+    "668667568352-s05cjvvihio58qc5i1n1h4hihg81o7p6.apps.googleusercontent.com",
 
   mapCenter: [-32.93788081611774, -60.723553454561625],
   mapZoom: 16,
