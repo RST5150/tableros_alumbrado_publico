@@ -75,11 +75,11 @@ export const CONFIG = {
   // ve cada usuario; Capas_editables (independiente) controla qué puede crear/editar desde el
   // formulario de tableros.
   rolesCsvUrl:
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRqSXOkKTJdGpJ1gPHzpsihR-4LT9JdxR7CwjZV9vBZZCdQffNI6luQFYLbM2khH-GA897XMsnIdPHc/pub?gid=1213598122&single=true&output=csv",
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8VHCOKI9SjgxZ01hbkGYdgOQQYzL8GN5pBXXASJuf4XCYAMQtgj4GNqbC5R1arWeHne6K37Kci7lg/pub?gid=1213598122&single=true&output=csv",
 
   // URL del Google Apps Script Web App que recibe los guardados del formulario de tableros
   // (ver README, sección "Formulario de tableros"). Hasta que esté configurado, el botón de
   // agregar/editar no se muestra.
   appsScriptUrl:
-    "https://script.google.com/macros/s/AKfycbwFLJ_bwntBR2s_tpG5MMW8vF5JMkmh1wSu6C1LWrcjFjQRvwpc_dFVMpcFq_aMUa834w/exec",
+    "https://script.google.com/macros/s/AKfycbxlAh9rTbNj8D0PIsTPFwfLEDKmMSPjzz2Yk2LL_lmzBK-1kWpO8GQvyWvizzZFMv6eFA/exec",
 };
