@@ -23,8 +23,10 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_SECTOR_BY_ZONA = { 1: 69, 2: 53, 3: 52 };
 
 // El nombre del archivo (sin extensión) tiene que ser el código de tablero: 5 dígitos, el
-// primero 1/2/3 (zona), y el sector (dígitos 2-3) dentro del rango real de esa zona.
-function planoFileNameError(fileName) {
+// primero 1/2/3 (zona), el sector (dígitos 2-3) dentro del rango real de esa zona, y además
+// coincidir con el código del tablero que se está creando/editando — así se sube tal cual
+// (ver Code.gs → uploadPlano), sin agregarle ningún prefijo de zona/nombre al guardarlo.
+function planoFileNameError(fileName, tableroNombre) {
   const base = fileName.replace(/\.[^.]+$/, '');
   if (!/^\d{5}$/.test(base)) {
     return 'El nombre del archivo tiene que ser el código del tablero: 5 números (ej. "16309.pdf").';
@@ -37,6 +39,12 @@ function planoFileNameError(fileName) {
   }
   if (sector < 1 || sector > maxSector) {
     return `El sector "${base.slice(1, 3)}" no existe en la Zona ${zona} (hay hasta ${maxSector}).`;
+  }
+  if (!tableroNombre) {
+    return 'Completá el código del tablero antes de subir el plano.';
+  }
+  if (base !== tableroNombre) {
+    return `El nombre del archivo ("${base}") no coincide con el código del tablero ("${tableroNombre}").`;
   }
   return null;
 }
@@ -209,7 +217,7 @@ export function initForms({ map, upsertTablero }) {
       planoFileInput.value = '';
       return;
     }
-    const nameError = planoFileNameError(file.name);
+    const nameError = planoFileNameError(file.name, nombreInput.value.trim());
     if (nameError) {
       planoStatus.textContent = nameError;
       planoFileInput.value = '';

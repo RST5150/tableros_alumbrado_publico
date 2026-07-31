@@ -60,10 +60,11 @@ var ZONA_FOLDER_IDS = {
 var MAX_SECTOR_BY_ZONA = { 1: 69, 2: 53, 3: 52 };
 
 // Solo se aceptan PDF cuyo nombre (sin extensión) sea el código de tablero: 5 dígitos, el
-// primero 1/2/3 (zona), sector (dígitos 2-3) dentro del rango real de esa zona. Se valida acá
+// primero 1/2/3 (zona), sector (dígitos 2-3) dentro del rango real de esa zona, y además tiene
+// que coincidir con el código del tablero que se está creando/editando (nombre). Se valida acá
 // (no solo en el formulario) porque esta es la única puerta que no se puede saltear pegándole
 // directo a la URL del script.
-function assertValidPlanoFileName(fileName) {
+function assertValidPlanoFileName(fileName, nombre) {
   var base = String(fileName).replace(/\.[^.]+$/, '');
   if (!/^\d{5}$/.test(base)) {
     throw new Error('El nombre del archivo tiene que ser el código del tablero: 5 números (ej. "16309.pdf").');
@@ -77,18 +78,22 @@ function assertValidPlanoFileName(fileName) {
   if (sector < 1 || sector > maxSector) {
     throw new Error('El sector "' + base.substring(1, 3) + '" no existe en la Zona ' + zona + ' (hay hasta ' + maxSector + ').');
   }
+  if (base !== String(nombre || '').trim()) {
+    throw new Error('El nombre del archivo ("' + base + '") tiene que coincidir con el código del tablero ("' + nombre + '").');
+  }
 }
 
 // Sube el plano a Drive, dentro de la subcarpeta "Sector XX" que corresponda según el código
 // del tablero, y devuelve el link para guardar en la columna "Plano". El archivo queda visible
 // para "cualquiera con el link" — si no, el link no serviría para nada al abrirlo desde el
-// popup del mapa.
+// popup del mapa. Se guarda con el nombre original del archivo (ya validado arriba como igual
+// al código del tablero) — sin agregarle ningún prefijo de zona/nombre.
 function uploadPlano(body) {
   if (!body.fileData || !body.fileName) throw new Error('Falta el archivo a subir.');
   if (body.mimeType !== 'application/pdf' && !/\.pdf$/i.test(body.fileName)) {
     throw new Error('Solo se aceptan archivos PDF.');
   }
-  assertValidPlanoFileName(body.fileName);
+  assertValidPlanoFileName(body.fileName, body.nombre);
 
   var maxBytes = 8 * 1024 * 1024;
   var bytes = Utilities.base64Decode(body.fileData);
@@ -96,8 +101,7 @@ function uploadPlano(body) {
 
   markOldPlanoAsOld(body.zona, body.nombre);
 
-  var safeName = [body.zona, body.nombre, body.fileName].filter(Boolean).join('_');
-  var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', safeName);
+  var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', body.fileName);
   var file = getSectorFolder(body.zona, body.nombre).createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file.getUrl();
@@ -155,6 +159,12 @@ function getSectorFolder(zona, nombre) {
 var CLOUDINARY_CLOUD_NAME = 'alumbrado';
 var CLOUDINARY_API_KEY = '731833263647895';
 
+// "tableros_zona1" -> "Zona1", para armar la carpeta de Cloudinary (ver uploadFoto).
+function zonaFolderName(zona) {
+  var match = String(zona).match(/(\d+)$/);
+  return 'Zona' + (match ? match[1] : zona);
+}
+
 // A diferencia del plano, acá no se valida el nombre que trae el archivo: el nombre final
 // (código de tablero + _ext/_int) lo arma este mismo script a partir de la zona/tablero que
 // se está editando, así quien sube la foto puede usar el archivo tal cual sale del celular.
@@ -173,7 +183,10 @@ function uploadFoto(body) {
   var codigo = String(body.nombre || '').trim();
   if (codigo.length < 3) throw new Error('No se pudo determinar el sector del código "' + codigo + '".');
   var sector = codigo.substring(1, 3);
-  var publicId = body.zona + '/sector_' + sector + '/' + codigo + '_' + body.tipo;
+  // Mismo criterio de carpetas que Drive (ZONA_FOLDER_IDS + "Sector XX"), pero como ruta de
+  // public_id de Cloudinary: tableros/Zona1/sector_XX/... (zona en texto, no el id interno
+  // "tableros_zona1").
+  var publicId = 'tableros/' + zonaFolderName(body.zona) + '/sector_' + sector + '/' + codigo + '_' + body.tipo;
 
   var timestamp = Math.floor(Date.now() / 1000);
   var toSign = 'overwrite=true&public_id=' + publicId + '&timestamp=' + timestamp;
