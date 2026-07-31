@@ -22,6 +22,13 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 // actualizar acá y en Code.gs (MAX_SECTOR_BY_ZONA).
 const MAX_SECTOR_BY_ZONA = { 1: 69, 2: 53, 3: 52 };
 
+// La zona surge del primer dígito del código (formato XYYXX: X = zona) — no se elige a mano,
+// para que no se pueda cargar un tablero en una zona que no corresponde a su propio código.
+function zonaDefFromCodigo(codigo) {
+  const digit = String(codigo || '').trim().charAt(0);
+  return CONFIG.pointLayers.find((l) => l.id === `tableros_zona${digit}`) || null;
+}
+
 // El nombre del archivo (sin extensión) tiene que ser el código de tablero: 5 dígitos, el
 // primero 1/2/3 (zona), el sector (dígitos 2-3) dentro del rango real de esa zona, y además
 // coincidir con el código del tablero que se está creando/editando — así se sube tal cual
@@ -97,7 +104,7 @@ function buildPanel() {
 
       <label class="tablero-form-zona-field">
         Zona
-        <select name="zona"></select>
+        <input type="text" class="tablero-form-zona-display" disabled />
       </label>
 
       <label>
@@ -185,7 +192,7 @@ export function initForms({ map, upsertTablero }) {
   const form = panel.querySelector('form');
   const errorBox = panel.querySelector('.tablero-form-error');
   const zonaField = panel.querySelector('.tablero-form-zona-field');
-  const zonaSelect = panel.querySelector('select[name=zona]');
+  const zonaDisplay = panel.querySelector('.tablero-form-zona-display');
   const nombreInput = panel.querySelector('input[name=Nombre]');
   const latInput = panel.querySelector('input[name=Lat]');
   const lonInput = panel.querySelector('input[name=Lon]');
@@ -275,9 +282,16 @@ export function initForms({ map, upsertTablero }) {
     });
   });
 
-  function editableZonaDefs() {
-    return CONFIG.pointLayers.filter((l) => editableZonaIds.has(l.id));
+  // Refleja en vivo la zona que va a resultar del código tipeado (ver zonaDefFromCodigo).
+  function updateZonaDisplay() {
+    const def = zonaDefFromCodigo(nombreInput.value);
+    if (def) {
+      zonaDisplay.value = def.label;
+    } else {
+      zonaDisplay.value = nombreInput.value.trim() ? 'Código inválido (tiene que empezar con 1, 2 o 3)' : '';
+    }
   }
+  nombreInput.addEventListener('input', updateZonaDisplay);
 
   function openForm(opts) {
     mode = opts.mode;
@@ -291,10 +305,8 @@ export function initForms({ map, upsertTablero }) {
     if (mode === 'create') {
       title.textContent = 'Nuevo tablero';
       zonaField.hidden = false;
-      zonaSelect.innerHTML = editableZonaDefs()
-        .map((l) => `<option value="${l.id}">${l.label}</option>`)
-        .join('');
       nombreInput.disabled = false;
+      updateZonaDisplay();
     } else {
       title.textContent = `Editar tablero ${opts.row.Nombre}`;
       zonaField.hidden = true;
@@ -339,8 +351,8 @@ export function initForms({ map, upsertTablero }) {
     e.preventDefault();
     hideError();
 
-    const zonaId = mode === 'create' ? zonaSelect.value : editingDef.id;
-    const def = CONFIG.pointLayers.find((l) => l.id === zonaId);
+    const def = mode === 'create' ? zonaDefFromCodigo(nombreInput.value.trim()) : editingDef;
+    const zonaId = def?.id;
     const data = {
       Nombre: nombreInput.value.trim(),
       Lat: latInput.value.trim(),
@@ -353,8 +365,16 @@ export function initForms({ map, upsertTablero }) {
       data[f.key] = form.querySelector(`[name="${CSS.escape(f.key)}"]`).value.trim();
     }
 
-    if (!def || !data.Nombre || !data.Lat || !data.Lon) {
+    if (!data.Nombre || !data.Lat || !data.Lon) {
       showError('Completá código, latitud y longitud.');
+      return;
+    }
+    if (!def) {
+      showError('El código tiene que empezar con 1, 2 o 3 (zona).');
+      return;
+    }
+    if (mode === 'create' && !editableZonaIds.has(def.id)) {
+      showError(`No tenés permiso para crear tableros en la ${def.label}.`);
       return;
     }
     if (Number.isNaN(parseFloat(data.Lat)) || Number.isNaN(parseFloat(data.Lon))) {

@@ -181,15 +181,19 @@ function uploadFoto(body) {
   if (!apiSecret) throw new Error('Falta configurar CLOUDINARY_API_SECRET en las propiedades del script.');
 
   var codigo = String(body.nombre || '').trim();
-  if (codigo.length < 3) throw new Error('No se pudo determinar el sector del código "' + codigo + '".');
-  var sector = codigo.substring(1, 3);
-  // Mismo criterio de carpetas que Drive (ZONA_FOLDER_IDS + "Sector XX"), pero como ruta de
-  // public_id de Cloudinary: tableros/Zona1/sector_XX/... (zona en texto, no el id interno
-  // "tableros_zona1").
-  var publicId = 'tableros/' + zonaFolderName(body.zona) + '/sector_' + sector + '/' + codigo + '_' + body.tipo;
+  // A diferencia de Drive (que sí separa por "Sector XX"), acá las fotos quedan sueltas
+  // directo dentro de tableros/ZonaN, sin subcarpeta de sector. "folder" va SEPARADO de
+  // "public_id" (no concatenado con "/") porque en cuentas de Cloudinary con "Dynamic Folder
+  // Mode" las barras dentro de public_id ya no arman carpetas solas — hace falta este
+  // parámetro aparte para que el archivo aparezca organizado en el Media Library.
+  var folder = 'tableros/' + zonaFolderName(body.zona);
+  var publicId = codigo + '_' + body.tipo;
 
   var timestamp = Math.floor(Date.now() / 1000);
-  var toSign = 'overwrite=true&public_id=' + publicId + '&timestamp=' + timestamp;
+  // Orden alfabético por nombre de parámetro (folder, overwrite, public_id, timestamp): así
+  // lo exige el algoritmo de firma de Cloudinary — tiene que incluir todos los parámetros que
+  // se mandan (menos file/cloud_name/resource_type/api_key), en ese orden.
+  var toSign = 'folder=' + folder + '&overwrite=true&public_id=' + publicId + '&timestamp=' + timestamp;
   var signature = sha1Hex(toSign + apiSecret);
 
   var blob = Utilities.newBlob(bytes, body.mimeType, body.fileName || (codigo + '_' + body.tipo));
@@ -200,6 +204,7 @@ function uploadFoto(body) {
       api_key: CLOUDINARY_API_KEY,
       timestamp: String(timestamp),
       signature: signature,
+      folder: folder,
       public_id: publicId,
       overwrite: 'true',
     },
