@@ -4,8 +4,11 @@ import { initAuth, allowedLayerIds, editableLayerIds } from './auth.js';
 import { buildMap } from './layers.js';
 import { initSearch } from './search.js';
 import { initForms } from './forms.js';
+import { initKonamiCode } from './easterEgg.js';
 
 async function main() {
+  initKonamiCode();
+
   // buildMap necesita un callback de "editar" al crearse, pero ese callback vive en forms.js,
   // que a su vez necesita `upsertTablero` (que devuelve buildMap). Se resuelve con esta
   // indirección: se le pasa una función que delega en `handleEditRequest`, reasignada una vez

@@ -139,7 +139,7 @@ async function loadPointLayer(def, isEditable) {
   return L.layerGroup(markers);
 }
 
-function isMobileDevice() {
+export function isMobileDevice() {
   return (
     /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches)
