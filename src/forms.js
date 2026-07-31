@@ -401,7 +401,10 @@ export function initForms({ map, upsertTablero }) {
       }
 
       saveBtn.textContent = 'Guardando…';
-      const json = await postToScript({ idToken: user.token, action: mode, zona: zonaId, data }, timeoutMs);
+      // Code.gs espera 'create'/'update' (createRow/updateRow); acá el modo interno es
+      // 'create'/'edit' — se traduce acá en vez de renombrar el estado interno.
+      const action = mode === 'edit' ? 'update' : mode;
+      const json = await postToScript({ idToken: user.token, action, zona: zonaId, data }, timeoutMs);
       if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
       upsertTablero(def, data);
       closePanel();
