@@ -18,6 +18,10 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var email = verifyIdToken(body.idToken);
 
+    if (body.action === 'notifyNoAccess') {
+      return jsonResponse({ ok: true, notified: notifyNoAccess(email, body.nombre) });
+    }
+
     if (!getEditableZonas(email).has(body.zona)) {
       return jsonResponse({ ok: false, error: 'No tenés permiso para editar tableros de esa zona.' });
     }
@@ -331,6 +335,45 @@ function logHistorial(email, zona, nombre, accion, detalle) {
   } catch (err) {
     // No se re-lanza: perder una línea de historial no debería impedir que el tablero se guarde.
   }
+}
+
+// Emails que reciben el aviso cuando alguien inicia sesión en el mapa sin tener ningún
+// permiso asignado todavía en la hoja Roles. Si cambian los destinatarios, actualizar acá.
+var NOTIFY_NO_ACCESS_EMAILS = ['alumbradorosario@gmail.com', 'ricardosalvia999@gmail.com'];
+
+// Devuelve true si mandó el aviso (primera vez que ve este email) o false si ya lo había
+// notificado antes (no reenvía en cada login). El registro en "Solicitudes de acceso" además
+// sirve como lista de pendientes para dar de alta a mano en Roles.
+function notifyNoAccess(email, nombre) {
+  var sheet = getOrCreateSolicitudesSheet();
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]).trim().toLowerCase() === email) return false;
+  }
+
+  sheet.appendRow([new Date(), email, nombre || '']);
+
+  MailApp.sendEmail({
+    to: NOTIFY_NO_ACCESS_EMAILS.join(','),
+    subject: 'Mapa de Tableros: usuario sin permisos',
+    body:
+      (nombre ? nombre + ' (' + email + ')' : email) +
+      ' inició sesión en el mapa de tableros pero todavía no tiene ningún permiso asignado en ' +
+      'la hoja "Roles".\n\nPara darle acceso, agregá una fila en la hoja Roles del Sheet ' +
+      'maestro con su email y las capas que corresponda (Capas_permitidas / Capas_editables).\n\n' +
+      'Este aviso se manda una sola vez por persona (ver hoja "Solicitudes de acceso").',
+  });
+  return true;
+}
+
+function getOrCreateSolicitudesSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Solicitudes de acceso');
+  if (!sheet) {
+    sheet = ss.insertSheet('Solicitudes de acceso');
+    sheet.appendRow(['Fecha', 'Email', 'Nombre']);
+  }
+  return sheet;
 }
 
 function getOrCreateHistorialSheet() {

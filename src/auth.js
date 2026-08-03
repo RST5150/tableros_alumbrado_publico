@@ -98,6 +98,35 @@ export function editableLayerIds(user, roles) {
   return resolveGrant(user, roles, 'edit');
 }
 
+function hasGrant(entry) {
+  if (!entry) return false;
+  return ['view', 'edit'].some((k) => entry[k] === '*' || entry[k]?.length > 0);
+}
+
+// true si el usuario inició sesión pero no tiene ninguna fila (o ninguna capa) asignada en
+// Roles — o sea, ve el mapa igual que alguien sin loguearse. Se usa para avisarle a un admin
+// (ver notifyNoAccess) que falta darlo de alta.
+export function hasNoPermissions(user, roles) {
+  if (!user) return false;
+  return !hasGrant(roles.get(user.email.toLowerCase()));
+}
+
+// Le pide al Apps Script que registre/avise que este usuario no tiene permisos. El dedupe (no
+// mandar el mismo mail en cada recarga) vive del lado del script, en la hoja "Solicitudes de
+// acceso" — acá simplemente se avisa cada vez, sin guardar nada en el navegador.
+export async function notifyNoAccess(user) {
+  if (CONFIG.appsScriptUrl.startsWith('REEMPLAZAR')) return;
+  try {
+    await fetch(CONFIG.appsScriptUrl, {
+      method: 'POST',
+      body: JSON.stringify({ idToken: user.token, action: 'notifyNoAccess', nombre: user.name }),
+    });
+  } catch {
+    // Si falla (red, script caído, etc.) no es crítico: en el peor caso el admin se entera de
+    // este usuario por otra vía en vez de por mail.
+  }
+}
+
 // onChange(user) se llama al iniciar/cerrar sesión, con el usuario actual (o null).
 export function initAuth(onChange) {
   const authArea = document.getElementById('auth-area');

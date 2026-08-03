@@ -1,6 +1,6 @@
 import './style.css';
 import 'leaflet/dist/leaflet.css';
-import { initAuth, allowedLayerIds, editableLayerIds } from './auth.js';
+import { initAuth, allowedLayerIds, editableLayerIds, hasNoPermissions, notifyNoAccess } from './auth.js';
 import { buildMap } from './layers.js';
 import { initSearch } from './search.js';
 import { initForms } from './forms.js';
@@ -29,6 +29,7 @@ async function main() {
     const editable = editableLayerIds(user, roles);
     setEditableZonaIds(editable);
     forms.setAuthState(user, editable);
+    if (hasNoPermissions(user, roles)) notifyNoAccess(user);
   });
 }
 

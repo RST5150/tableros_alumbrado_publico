@@ -185,6 +185,17 @@ tenías el Apps Script instalado de antes, hay que actualizar `Code.gs` con la v
 repo y volver a **Implementar → Gestionar implementaciones → Nueva versión** (ver paso 5) para
 que empiece a registrar.
 
+**Aviso de usuarios sin permisos**: cada vez que alguien inicia sesión con Google y su email no
+tiene ninguna fila (o ninguna capa) asignada en la hoja Roles, la web le avisa al mismo Apps
+Script (`action: 'notifyNoAccess'`), que manda un mail a `alumbradorosario@gmail.com` y
+`ricardosalvia999@gmail.com` (lista `NOTIFY_NO_ACCESS_EMAILS` en `Code.gs`, por si cambian los
+destinatarios) y deja un registro en una hoja **Solicitudes de acceso** (`Fecha, Email,
+Nombre`) del mismo Sheet maestro — que también sirve como lista de pendientes para dar de alta.
+El aviso se manda **una sola vez por persona** (se chequea contra esa hoja antes de reenviar);
+para volver a notificar a alguien, hay que borrar su fila de esa hoja. La primera vez que el
+script mande un mail, Google va a pedir autorizar un permiso nuevo (enviar correo), similar al
+paso de Drive.
+
 ## Actualizar límites de Zonas/Subzonas/Sectores
 
 Desde que se migró a los shapefiles de QGIS, esta es la vía oficial (más precisa que exportar
