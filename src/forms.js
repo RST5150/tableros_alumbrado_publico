@@ -30,6 +30,15 @@ function zonaDefFromCodigo(codigo) {
   return CONFIG.pointLayers.find((l) => l.id === `tableros_zona${digit}`) || null;
 }
 
+// A diferencia de parseFloat() (que corta en el primer carácter inválido sin tirar error:
+// parseFloat("-32,907190") da -32, no NaN), esto exige el formato completo con punto como
+// separador decimal. Sin esto, una coordenada tipeada/pegada con coma (común si el teclado o
+// el origen del copy-paste usan configuración regional en español) pasa la validación y queda
+// guardada mal en el Sheet, silenciosamente.
+function isValidCoordinate(value) {
+  return /^-?\d{1,3}(\.\d+)?$/.test(String(value || '').trim());
+}
+
 // El nombre del archivo (sin extensión) tiene que ser el código de tablero: 5 dígitos, el
 // primero 1/2/3 (zona), el sector (dígitos 2-3) dentro del rango real de esa zona, y además
 // coincidir con el código del tablero que se está creando/editando — así se sube tal cual
@@ -407,8 +416,8 @@ export function initForms({ map, upsertTablero }) {
       showError(`No tenés permiso para crear tableros en la ${def.label}.`);
       return;
     }
-    if (Number.isNaN(parseFloat(data.Lat)) || Number.isNaN(parseFloat(data.Lon))) {
-      showError('Latitud/longitud inválidas.');
+    if (!isValidCoordinate(data.Lat) || !isValidCoordinate(data.Lon)) {
+      showError('Latitud/longitud inválidas — usá punto como separador decimal (ej. "-32.907190"), no coma.');
       return;
     }
     if (!user?.token) {

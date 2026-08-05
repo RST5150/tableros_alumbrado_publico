@@ -16,6 +16,17 @@ function doGet() {
   return jsonResponse({ ok: true, message: 'Apps Script de Mapa de Tableros activo.' });
 }
 
+// El formulario ya valida esto (ver isValidCoordinate en forms.js), pero se repite acá porque
+// es la única puerta que no se puede saltear pegándole directo a la URL del script. Sin esto,
+// una coordenada con coma en vez de punto (típico si se tipea/pega con configuración regional
+// en español) queda guardada mal en el Sheet sin ningún aviso: JavaScript no tira error al
+// parsearla con parseFloat, solo corta en la coma y devuelve un número truncado.
+function assertValidCoordinate(value, label) {
+  if (!/^-?\d{1,3}(\.\d+)?$/.test(String(value || '').trim())) {
+    throw new Error(label + ' inválida ("' + value + '") — tiene que usar punto como separador decimal, no coma.');
+  }
+}
+
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
@@ -38,6 +49,11 @@ function doPost(e) {
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.zona);
     if (!sheet) return jsonResponse({ ok: false, error: 'No existe la hoja "' + body.zona + '".' });
+
+    if (body.action === 'create' || body.action === 'update') {
+      assertValidCoordinate(body.data.Lat, 'Latitud');
+      assertValidCoordinate(body.data.Lon, 'Longitud');
+    }
 
     if (body.action === 'create') {
       createRow(sheet, body.data);
@@ -275,6 +291,17 @@ function getEditableZonas(email) {
   return { has: function () { return false; } };
 }
 
+// Lat/Lon se mandan como número real (no texto) — si van como string, Sheets los reinterpreta
+// según la configuración regional de la planilla al guardarlos (en español/Argentina, puede
+// tomar el punto decimal como separador de miles), rompiendo la coordenada. Como updateRow
+// reescribe la fila entera en cada guardado, esto pasaba en CUALQUIER edición, no solo al
+// tocar Lat/Lon. Ya vienen validados con punto decimal (ver assertValidCoordinate), así que
+// Number() los interpreta bien siempre.
+function rowValueFor(col, data) {
+  var value = data[col] || '';
+  return col === 'Lat' || col === 'Lon' ? Number(value) : value;
+}
+
 function createRow(sheet, data) {
   var nombreIdx = COLUMNS.indexOf('Nombre');
   var lastRow = sheet.getLastRow();
@@ -286,7 +313,7 @@ function createRow(sheet, data) {
       }
     }
   }
-  sheet.appendRow(COLUMNS.map(function (col) { return data[col] || ''; }));
+  sheet.appendRow(COLUMNS.map(function (col) { return rowValueFor(col, data); }));
 }
 
 // Devuelve el detalle de qué campos cambiaron (ver diffRows), para que quede registrado en la
@@ -297,7 +324,7 @@ function updateRow(sheet, data) {
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][nombreIdx]).trim() === String(data.Nombre).trim()) {
       var oldRow = values[i];
-      var newRow = COLUMNS.map(function (col) { return data[col] || ''; });
+      var newRow = COLUMNS.map(function (col) { return rowValueFor(col, data); });
       sheet.getRange(i + 1, 1, 1, newRow.length).setValues([newRow]);
       return diffRows(oldRow, newRow);
     }
