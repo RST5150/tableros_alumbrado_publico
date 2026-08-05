@@ -12,6 +12,7 @@ const FIELDS = [
   { key: 'Letra', label: 'Letra' },
   { key: 'Bis', label: 'Bis' },
   { key: 'Responsable', label: 'Responsable' },
+  { key: 'Telegestión', label: 'Telegestión', type: 'checkbox' },
   { key: 'Última Inspección', label: 'Última inspección', type: 'date' },
 ];
 
@@ -161,8 +162,15 @@ function buildPanel() {
         <span class="tablero-form-foto-int-status"></span>
       </div>
 
-      ${FIELDS.map(
-        (f) => `
+      ${FIELDS.map((f) =>
+        f.type === 'checkbox'
+          ? `
+        <label class="tablero-form-checkbox">
+          <input type="checkbox" name="${f.key}" />
+          ${f.label}
+        </label>
+      `
+          : `
         <label>
           ${f.label}
           <input type="${f.type || 'text'}" name="${f.key}" />
@@ -335,7 +343,12 @@ export function initForms({ map, upsertTablero }) {
       fotoIntInput.value = opts.row['Foto Interna'] || '';
       for (const f of FIELDS) {
         const input = form.querySelector(`[name="${CSS.escape(f.key)}"]`);
-        if (input) input.value = opts.row[f.key] || '';
+        if (!input) continue;
+        if (f.type === 'checkbox') {
+          input.checked = /^(TRUE|SI|SÍ|1)$/i.test((opts.row[f.key] || '').trim());
+        } else {
+          input.value = opts.row[f.key] || '';
+        }
       }
     }
 
@@ -378,7 +391,8 @@ export function initForms({ map, upsertTablero }) {
       'Foto Interna': fotoIntInput.value.trim(),
     };
     for (const f of FIELDS) {
-      data[f.key] = form.querySelector(`[name="${CSS.escape(f.key)}"]`).value.trim();
+      const input = form.querySelector(`[name="${CSS.escape(f.key)}"]`);
+      data[f.key] = f.type === 'checkbox' ? (input.checked ? 'TRUE' : 'FALSE') : input.value.trim();
     }
 
     if (!data.Nombre || !data.Lat || !data.Lon) {

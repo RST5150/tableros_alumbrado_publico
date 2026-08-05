@@ -198,6 +198,34 @@ body {
   cursor: pointer;
 }
 
+/* Filtro "Telegestión", mismo estilo oscuro que labels-toggle para diferenciarlo de los
+   cuadros de capas. Solo visible cuando hay tableros cargados (ver updateTablerosControlVisibility
+   en layers.js). */
+.telegestion-filter {
+  background: var(--topbar-bg);
+  border-radius: 5px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  padding: 6px 10px;
+}
+
+.telegestion-filter label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 13px system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.telegestion-filter select {
+  font: inherit;
+  color: #1f2328;
+  border-radius: 3px;
+  border: none;
+  padding: 2px 4px;
+}
+
 /* Botón "Mi ubicación" (estilo Google Maps): cuadrado, ícono centrado, fondo blanco por
    defecto (leaflet-bar) y resaltado en .active mientras el watch de posición está corriendo. */
 .locate-btn {
@@ -465,6 +493,18 @@ body {
   flex-direction: column;
   gap: 3px;
   font-weight: 600;
+}
+
+/* Campos booleanos (ej. Telegestión): checkbox al lado del texto, no apilado como los campos
+   de texto/fecha. */
+.tablero-form-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+}
+
+.tablero-form-checkbox input {
+  width: auto;
 }
 
 .tablero-form-body input,

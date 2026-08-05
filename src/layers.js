@@ -31,6 +31,13 @@ function direccion(row) {
   return [partes, letra, bis].filter(Boolean).join(' ');
 }
 
+// 'TRUE' (checkbox nativo de Sheets), 'SI'/'SÍ' o '1' cuentan como marcado — así funciona
+// tanto si la columna es un checkbox real de Sheets como si alguien tipea el valor a mano.
+function isTelegestionTrue(row) {
+  const value = (row?.['Telegestión'] || '').toString().trim().toUpperCase();
+  return value === 'TRUE' || value === 'SI' || value === 'SÍ' || value === '1';
+}
+
 function pointPopupHtml(row, editable) {
   const inspeccionado = (row['Última Inspección'] || '').trim();
   const dir = direccion(row);
@@ -39,6 +46,7 @@ function pointPopupHtml(row, editable) {
     ['Clasificación', row['Clasificación']],
     ['Ubicación', row['Tipo de ubicación']],
     ['Responsable', row.Responsable],
+    ['Telegestión', isTelegestionTrue(row) ? 'Sí' : 'No'],
     ...(isUrl(row.Plano) ? [['Plano', `<a href="${row.Plano}" target="_blank" rel="noopener">Ver plano</a>`]] : []),
     ...(isUrl(row['Foto Externa']) ? [['Foto ext.', `<a href="${row['Foto Externa']}" target="_blank" rel="noopener">Ver foto</a>`]] : []),
     ...(isUrl(row['Foto Interna']) ? [['Foto int.', `<a href="${row['Foto Interna']}" target="_blank" rel="noopener">Ver foto</a>`]] : []),
@@ -136,7 +144,12 @@ async function loadPointLayer(def, isEditable) {
     if (Number.isNaN(parseFloat(row.Lat)) || Number.isNaN(parseFloat(row.Lon))) continue;
     markers.push(buildTableroMarker(row, def, isEditable));
   }
-  return L.layerGroup(markers);
+  const layer = L.layerGroup(markers);
+  // Lista completa de marcadores del layerGroup, independiente de cuáles estén agregados al
+  // mapa en este momento — el filtro de Telegestión (ver applyTelegestionFilter) saca/agrega
+  // marcadores del grupo, así que layer.getLayers() sola no alcanza para recalcularlo después.
+  layer.tableroMarkers = markers;
+  return layer;
 }
 
 export function isMobileDevice() {
@@ -436,7 +449,7 @@ export async function buildMap(allowedIds, onEditRequest) {
     }
     applyLabelsVisibility();
     updateTablerosControlVisibility();
-    applyTableroLabelsVisibility();
+    applyTelegestionFilter();
   }
 
   // Números de tablero: solo se muestran a partir de cierto zoom (con el mapa alejado, ~2200
@@ -486,6 +499,55 @@ export async function buildMap(allowedIds, onEditRequest) {
     },
   });
 
+  // Filtro por Telegestión: en vez de tildar/destildar toda una zona, saca/agrega marcadores
+  // individuales de su layerGroup según coincidan con el filtro (ver applyTelegestionFilter) —
+  // así quedan afuera también de la búsqueda (getSearchableTableros) y de los popups, no solo
+  // ocultos visualmente.
+  let telegestionFilter = prefs.telegestionFilter || 'all';
+  function matchesTelegestionFilter(row) {
+    if (telegestionFilter === 'all') return true;
+    return telegestionFilter === 'si' ? isTelegestionTrue(row) : !isTelegestionTrue(row);
+  }
+  function applyTelegestionFilter() {
+    for (const { def, layer } of loaded) {
+      if (def.kind !== 'point' || !layer.tableroMarkers) continue;
+      for (const marker of layer.tableroMarkers) {
+        const shouldShow = matchesTelegestionFilter(marker.tableroRow);
+        const isShown = layer.hasLayer(marker);
+        if (shouldShow && !isShown) marker.addTo(layer);
+        else if (!shouldShow && isShown) layer.removeLayer(marker);
+      }
+    }
+    applyTableroLabelsVisibility();
+  }
+
+  const TelegestionFilter = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const container = L.DomUtil.create('div', 'telegestion-filter leaflet-bar');
+      container.innerHTML = `
+        <label>
+          Telegestión
+          <select>
+            <option value="all">Todos</option>
+            <option value="si">Con telegestión</option>
+            <option value="no">Sin telegestión</option>
+          </select>
+        </label>
+      `;
+      L.DomEvent.disableClickPropagation(container);
+      const select = container.querySelector('select');
+      select.value = telegestionFilter;
+      select.addEventListener('change', (e) => {
+        telegestionFilter = e.target.value;
+        prefs.telegestionFilter = telegestionFilter;
+        savePrefs(prefs);
+        applyTelegestionFilter();
+      });
+      return container;
+    },
+  });
+
   // Se agrega antes que el toggle "Mostrar referencias" para que el cuadro de Tableros quede
   // apilado arriba de ese toggle (Leaflet apila los controles de una misma esquina en el orden
   // en que se van agregando al mapa).
@@ -495,13 +557,17 @@ export async function buildMap(allowedIds, onEditRequest) {
   // En mobile no hay tooltips bindeados (ver loadPolygonLayer), así que el toggle no tendría
   // ningún efecto: se omite en vez de mostrar un control que no hace nada.
   const labelsToggleControl = isMobileDevice() ? null : new LabelsToggle().addTo(map);
+  const telegestionFilterControl = new TelegestionFilter().addTo(map);
 
-  // El cuadro de Tableros no debe verse cuando no hay ninguna capa de tableros habilitada
-  // (usuario sin loguear, o logueado sin permiso a ninguna zona de tableros), ni cuando el
-  // botón de ocultar capas está activo.
+  // El cuadro de Tableros (y el filtro de Telegestión, que solo tiene sentido si hay tableros
+  // visibles) no deben verse cuando no hay ninguna capa de tableros habilitada (usuario sin
+  // loguear, o logueado sin permiso a ninguna zona de tableros), ni cuando el botón de ocultar
+  // capas está activo.
   let visiblePointLayers = 0;
   function updateTablerosControlVisibility() {
-    tablerosControl.getContainer().style.display = visiblePointLayers > 0 && !layersPanelsHidden ? '' : 'none';
+    const display = visiblePointLayers > 0 && !layersPanelsHidden ? '' : 'none';
+    tablerosControl.getContainer().style.display = display;
+    telegestionFilterControl.getContainer().style.display = display;
   }
   updateTablerosControlVisibility();
 
@@ -548,10 +614,18 @@ export async function buildMap(allowedIds, onEditRequest) {
   function upsertTablero(def, row) {
     const entry = loaded.find((e) => e.def.id === def.id);
     if (!entry) return;
-    entry.layer.eachLayer((marker) => {
-      if (marker.tableroRow?.Nombre === row.Nombre) entry.layer.removeLayer(marker);
-    });
-    buildTableroMarker(row, def, isEditable).addTo(entry.layer);
+    // Se busca en tableroMarkers (la lista completa), no con eachLayer (que solo recorre los
+    // que están agregados al grupo ahora mismo) — si el tablero que se está editando estaba
+    // afuera por el filtro de Telegestión, eachLayer no lo hubiera encontrado.
+    const markers = entry.layer.tableroMarkers || (entry.layer.tableroMarkers = []);
+    const idx = markers.findIndex((m) => m.tableroRow?.Nombre === row.Nombre);
+    if (idx !== -1) {
+      const [oldMarker] = markers.splice(idx, 1);
+      if (entry.layer.hasLayer(oldMarker)) entry.layer.removeLayer(oldMarker);
+    }
+    const newMarker = buildTableroMarker(row, def, isEditable);
+    markers.push(newMarker);
+    if (matchesTelegestionFilter(row)) newMarker.addTo(entry.layer);
     applyTableroLabelsVisibility();
   }
 

@@ -4,9 +4,12 @@
 // Reemplazar por el mismo Client ID que hay en src/config.js (googleClientId).
 var CLIENT_ID = 'REEMPLAZAR_CON_TU_CLIENT_ID.apps.googleusercontent.com';
 
+// El orden acá tiene que ser EXACTAMENTE el mismo que el de las columnas reales en cada hoja
+// tableros_zona* (createRow/updateRow escriben por posición, no por nombre de encabezado).
 var COLUMNS = [
   'Nombre', 'Lat', 'Lon', 'Tipo', 'Clasificación', 'Tipo de ubicación', 'Calle', 'Altura',
-  'Letra', 'Bis', 'Responsable', 'Plano', 'Foto Externa', 'Foto Interna', 'Última Inspección',
+  'Letra', 'Bis', 'Responsable', 'Plano', 'Foto Externa', 'Foto Interna', 'Telegestión',
+  'Última Inspección',
 ];
 
 function doGet() {
