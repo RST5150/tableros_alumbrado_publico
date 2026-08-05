@@ -40,13 +40,13 @@ function isTelegestionTrue(row) {
 
 function pointPopupHtml(row, editable) {
   const inspeccionado = (row['Última Inspección'] || '').trim();
+  const telegestionado = isTelegestionTrue(row);
   const dir = direccion(row);
   const extraRows = [
     ['Tipo', row.Tipo],
     ['Clasificación', row['Clasificación']],
     ['Ubicación', row['Tipo de ubicación']],
     ['Responsable', row.Responsable],
-    ['Telegestión', isTelegestionTrue(row) ? 'Sí' : 'No'],
     ...(isUrl(row.Plano) ? [['Plano', `<a href="${row.Plano}" target="_blank" rel="noopener">Ver plano</a>`]] : []),
     ...(isUrl(row['Foto Externa']) ? [['Foto ext.', `<a href="${row['Foto Externa']}" target="_blank" rel="noopener">Ver foto</a>`]] : []),
     ...(isUrl(row['Foto Interna']) ? [['Foto int.', `<a href="${row['Foto Interna']}" target="_blank" rel="noopener">Ver foto</a>`]] : []),
@@ -55,9 +55,14 @@ function pointPopupHtml(row, editable) {
   return `
     <div class="tablero-popup">
       <h3>Tablero ${row.Nombre || 'sin código'}</h3>
-      <span class="estado-badge ${inspeccionado ? 'estado-ok' : 'estado-pendiente'}">
-        ${inspeccionado ? `Inspeccionado: ${inspeccionado}` : 'Sin inspección registrada'}
-      </span>
+      <div class="tablero-popup-badges">
+        <span class="estado-badge ${telegestionado ? 'estado-ok' : 'estado-info'}">
+          ${telegestionado ? 'Telegestionado' : 'Sin Telegestión'}
+        </span>
+        <span class="estado-badge ${inspeccionado ? 'estado-ok' : 'estado-pendiente'}">
+          ${inspeccionado ? `Inspeccionado: ${inspeccionado}` : 'Sin inspección registrada'}
+        </span>
+      </div>
       ${dir ? `<p>${dir}</p>` : ''}
       <dl>
         ${extraRows.map(([label, value]) => `<dt>${label}</dt><dd>${value}</dd>`).join('')}
