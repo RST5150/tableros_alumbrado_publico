@@ -301,6 +301,10 @@ function getEditableZonas(email) {
 function writeTableroRow(sheet, targetRow, data) {
   var latCol = COLUMNS.indexOf('Lat') + 1;
   sheet.getRange(targetRow, latCol, 1, 2).setNumberFormat('@');
+  // Confirmado con una prueba real: sin este flush, el cambio de formato de arriba no llega a
+  // aplicarse antes del setValues de abajo, y la celda se autodetecta/reformatea igual (con
+  // coma, según la configuración regional) aunque el valor que llegue ya tenga punto.
+  SpreadsheetApp.flush();
   var row = COLUMNS.map(function (col) { return data[col] || ''; });
   sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
 }
