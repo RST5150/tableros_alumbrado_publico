@@ -198,13 +198,13 @@ body {
   cursor: pointer;
 }
 
-/* Filtro "Telegestión", mismo estilo oscuro que labels-toggle para diferenciarlo de los
-   cuadros de capas. Solo visible cuando hay tableros cargados (ver updateTablerosControlVisibility
-   en layers.js). */
+/* Filtro "Telegestión": mismo blanco/sombra que los cuadros de capas (leaflet-control-layers),
+   no el estilo oscuro de labels-toggle. Solo visible cuando hay tableros cargados (ver
+   updateTablerosControlVisibility en layers.js). */
 .telegestion-filter {
-  background: var(--topbar-bg);
+  background: #fff;
   border-radius: 5px !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4) !important;
   padding: 6px 10px;
 }
 
@@ -213,7 +213,7 @@ body {
   align-items: center;
   gap: 6px;
   font: 13px system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #fff;
+  color: #1f2328;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -222,7 +222,7 @@ body {
   font: inherit;
   color: #1f2328;
   border-radius: 3px;
-  border: none;
+  border: 1px solid var(--border);
   padding: 2px 4px;
 }
 

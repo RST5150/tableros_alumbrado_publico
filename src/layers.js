@@ -554,10 +554,13 @@ export async function buildMap(allowedIds, onEditRequest) {
   const tablerosControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
   const controlFor = (def) => (def.kind === 'polygon' ? polygonControl : tablerosControl);
 
+  // El filtro de Telegestión se agrega antes que "Mostrar referencias" para quedar apilado
+  // arriba de ese toggle (mismo criterio de orden que tablerosControl más arriba).
+  const telegestionFilterControl = new TelegestionFilter().addTo(map);
+
   // En mobile no hay tooltips bindeados (ver loadPolygonLayer), así que el toggle no tendría
   // ningún efecto: se omite en vez de mostrar un control que no hace nada.
   const labelsToggleControl = isMobileDevice() ? null : new LabelsToggle().addTo(map);
-  const telegestionFilterControl = new TelegestionFilter().addTo(map);
 
   // El cuadro de Tableros (y el filtro de Telegestión, que solo tiene sentido si hay tableros
   // visibles) no deben verse cuando no hay ninguna capa de tableros habilitada (usuario sin
