@@ -303,11 +303,63 @@ export async function buildMap(allowedIds, onEditRequest) {
       }
     ),
   };
+
+  // Overlay transparente de nombres de calles/lugares para combinar con Satelital (esa capa,
+  // al ser solo fotos aéreas, no trae ningún texto). El de Esri (Reference/World_Boundaries_
+  // and_Places) casi no tiene datos cargados en esta zona — se usa en cambio el "solo etiquetas"
+  // de CartoDB (mismo proveedor que Claro/Voyager/Oscuro), que sí incluye nombres de calle.
+  // Pane propia (no la pane de tiles compartida con el mapa base) para poder oscurecer el
+  // texto con un filtro CSS sin afectar la imagen satelital de abajo — CartoDB no ofrece una
+  // variante de "solo etiquetas" con un tono más oscuro ya hecho.
+  map.createPane('streetLabels');
+  map.getPane('streetLabels').style.zIndex = 450;
+  map.getPane('streetLabels').style.filter = 'brightness(0.7) contrast(1.15)';
+
+  const streetLabelsOverlay = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+    {
+      pane: 'streetLabels',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+    }
+  );
+
   const initialBase = prefs.baseLayer && baseLayers[prefs.baseLayer] ? prefs.baseLayer : 'Callejero';
   baseLayers[initialBase].addTo(map);
+  let currentBaseName = initialBase;
+
   const baseLayersControl = L.control.layers(baseLayers, null, { collapsed: false }).addTo(map);
+
+  // El checkbox de "Nombres de calles" solo tiene sentido (y solo aparece) con Satelital de
+  // base — las demás capas ya traen sus propios nombres. Se agrega/saca del control entero
+  // (no solo se tilda/destilda) al cambiar de mapa base, para que no quede una opción muerta
+  // ofrecida sobre capas que no la necesitan.
+  let streetLabelsRegistered = false;
+  function updateStreetLabelsAvailability() {
+    const isSatelital = currentBaseName === 'Satelital';
+    if (isSatelital && !streetLabelsRegistered) {
+      baseLayersControl.addOverlay(streetLabelsOverlay, 'Nombres de calles');
+      streetLabelsRegistered = true;
+      if (prefs.streetLabelsOverlay) streetLabelsOverlay.addTo(map);
+    } else if (!isSatelital && streetLabelsRegistered) {
+      map.removeLayer(streetLabelsOverlay);
+      baseLayersControl.removeLayer(streetLabelsOverlay);
+      streetLabelsRegistered = false;
+    }
+  }
+  updateStreetLabelsAvailability();
+
   map.on('baselayerchange', (e) => {
     prefs.baseLayer = e.name;
+    savePrefs(prefs);
+    currentBaseName = e.name;
+    updateStreetLabelsAvailability();
+  });
+  map.on('overlayadd overlayremove', (e) => {
+    if (e.layer !== streetLabelsOverlay) return;
+    prefs.streetLabelsOverlay = e.type === 'overlayadd';
     savePrefs(prefs);
   });
 
