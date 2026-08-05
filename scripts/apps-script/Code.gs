@@ -291,15 +291,18 @@ function getEditableZonas(email) {
   return { has: function () { return false; } };
 }
 
-// Lat/Lon se mandan como número real (no texto) — si van como string, Sheets los reinterpreta
-// según la configuración regional de la planilla al guardarlos (en español/Argentina, puede
-// tomar el punto decimal como separador de miles), rompiendo la coordenada. Como updateRow
-// reescribe la fila entera en cada guardado, esto pasaba en CUALQUIER edición, no solo al
-// tocar Lat/Lon. Ya vienen validados con punto decimal (ver assertValidCoordinate), así que
-// Number() los interpreta bien siempre.
-function rowValueFor(col, data) {
-  var value = data[col] || '';
-  return col === 'Lat' || col === 'Lon' ? Number(value) : value;
+// Lat/Lon se escriben forzando formato de texto plano ("@") en esas dos celdas antes de
+// escribirlas — así Sheets nunca las autodetecta/reformatea como número según la
+// configuración regional de la planilla (en español/Argentina, puede tomar el punto decimal
+// como separador de miles al guardar, o mostrarlas con coma en vez de punto aunque el valor
+// sea correcto). Como esto reescribe la fila entera en cada guardado, sin este forzado pasaba
+// en CUALQUIER edición, no solo al tocar Lat/Lon. Ya vienen validadas con punto decimal (ver
+// assertValidCoordinate), así que quedan exactamente como se escriben, igual que las demás filas.
+function writeTableroRow(sheet, targetRow, data) {
+  var latCol = COLUMNS.indexOf('Lat') + 1;
+  sheet.getRange(targetRow, latCol, 1, 2).setNumberFormat('@');
+  var row = COLUMNS.map(function (col) { return data[col] || ''; });
+  sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
 }
 
 function createRow(sheet, data) {
@@ -313,7 +316,7 @@ function createRow(sheet, data) {
       }
     }
   }
-  sheet.appendRow(COLUMNS.map(function (col) { return rowValueFor(col, data); }));
+  writeTableroRow(sheet, lastRow + 1, data);
 }
 
 // Devuelve el detalle de qué campos cambiaron (ver diffRows), para que quede registrado en la
@@ -324,8 +327,8 @@ function updateRow(sheet, data) {
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][nombreIdx]).trim() === String(data.Nombre).trim()) {
       var oldRow = values[i];
-      var newRow = COLUMNS.map(function (col) { return rowValueFor(col, data); });
-      sheet.getRange(i + 1, 1, 1, newRow.length).setValues([newRow]);
+      var newRow = COLUMNS.map(function (col) { return data[col] || ''; });
+      writeTableroRow(sheet, i + 1, data);
       return diffRows(oldRow, newRow);
     }
   }
