@@ -266,20 +266,36 @@ export function initForms({ map, upsertTablero }) {
 
   function closePanel() {
     panel.classList.remove('open');
+    cancelPick();
   }
 
   panel.querySelector('.tablero-form-close').addEventListener('click', closePanel);
   panel.querySelector('.tablero-form-cancel').addEventListener('click', closePanel);
 
+  // Mientras se está eligiendo ubicación, los marcadores de tableros no dejan pasar el clic
+  // al mapa (Leaflet no burbujea eventos de Marker por default) — con ~2200 tableros es fácil
+  // clickear encima de uno sin querer y que el clic le abra el popup a ese marcador en vez de
+  // registrarse como el punto elegido. Se desactivan sus eventos de mouse mientras se elige.
+  function cancelPick() {
+    map.off('click', handlePick);
+    pickBtn.textContent = 'Elegir ubicación en el mapa';
+    pickBtn.disabled = false;
+    const tablerosPane = map.getPane('tableros');
+    if (tablerosPane) tablerosPane.style.pointerEvents = '';
+  }
+
+  function handlePick(e) {
+    latInput.value = e.latlng.lat.toFixed(6);
+    lonInput.value = e.latlng.lng.toFixed(6);
+    cancelPick();
+  }
+
   pickBtn.addEventListener('click', () => {
     pickBtn.textContent = 'Hacé clic en el mapa…';
     pickBtn.disabled = true;
-    map.once('click', (e) => {
-      latInput.value = e.latlng.lat.toFixed(6);
-      lonInput.value = e.latlng.lng.toFixed(6);
-      pickBtn.textContent = 'Elegir ubicación en el mapa';
-      pickBtn.disabled = false;
-    });
+    const tablerosPane = map.getPane('tableros');
+    if (tablerosPane) tablerosPane.style.pointerEvents = 'none';
+    map.once('click', handlePick);
   });
 
   // Refleja en vivo la zona que va a resultar del código tipeado (ver zonaDefFromCodigo).
