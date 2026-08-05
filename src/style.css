@@ -220,10 +220,15 @@ body {
 
 .telegestion-filter select {
   font: inherit;
+  background: #fff;
   color: #1f2328;
   border-radius: 3px;
   border: 1px solid var(--border);
   padding: 2px 4px;
+  /* Sin esto, con el navegador/SO en modo oscuro el <select> nativo (y su desplegable) se
+     renderiza oscuro solo, aunque el fondo de acá sea blanco — hereda color-scheme:light dark
+     del :root. Se fuerza a claro para que combine con el resto del cuadro, blanco fijo. */
+  color-scheme: light;
 }
 
 /* Botón "Mi ubicación" (estilo Google Maps): cuadrado, ícono centrado, fondo blanco por
