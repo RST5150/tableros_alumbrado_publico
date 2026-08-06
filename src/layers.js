@@ -38,8 +38,21 @@ function isTelegestionTrue(row) {
   return value === 'TRUE' || value === 'SI' || value === 'SÍ' || value === '1';
 }
 
+// El Sheet publica "Última Inspección" en formato mm/dd/aaaa (locale en-US de la planilla) o
+// aaaa-mm-dd (si se cargó desde el input type=date del formulario) — acá se normaliza siempre
+// a dd/mm/aaaa para mostrar, sin tocar cómo se guarda en el Sheet.
+function formatFechaDDMMAAAA(value) {
+  const v = (value || '').trim();
+  if (!v) return '';
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[3].padStart(2, '0')}/${m[2].padStart(2, '0')}/${m[1]}`;
+  m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[2].padStart(2, '0')}/${m[1].padStart(2, '0')}/${m[3]}`;
+  return v;
+}
+
 function pointPopupHtml(row, editable) {
-  const inspeccionado = (row['Última Inspección'] || '').trim();
+  const inspeccionado = formatFechaDDMMAAAA(row['Última Inspección']);
   const telegestionado = isTelegestionTrue(row);
   const dir = direccion(row);
   const extraRows = [
