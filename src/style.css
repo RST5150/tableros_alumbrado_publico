@@ -538,6 +538,36 @@ body {
   color: var(--text);
 }
 
+.tablero-form-date {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tablero-form-date input[type='text'] {
+  flex: 1;
+}
+
+/* Solo existe para poder disparar el date picker nativo del navegador (ver showPicker() en
+   forms.js) — no se ve ni se tabula hasta ahí; el campo de texto de al lado es el real. */
+.tablero-form-date-picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tablero-form-date-btn {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .tablero-form-latlon {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -184,7 +184,11 @@ function buildPanel() {
           ? `
         <label>
           ${f.label}
-          <input type="text" name="${f.key}" placeholder="dd/mm/aaaa" inputmode="numeric" />
+          <div class="tablero-form-date">
+            <input type="text" name="${f.key}" placeholder="dd/mm/aaaa" inputmode="numeric" />
+            <input type="date" class="tablero-form-date-picker" data-for="${f.key}" tabindex="-1" aria-hidden="true" />
+            <button type="button" class="tablero-form-date-btn" data-for="${f.key}" aria-label="Elegir fecha en el calendario">📅</button>
+          </div>
         </label>
       `
           : `
@@ -280,6 +284,23 @@ export function initForms({ map, upsertTablero }) {
   }
   wireFotoFileInput(fotoExtFileInput, fotoExtStatus, 'foto externa');
   wireFotoFileInput(fotoIntFileInput, fotoIntStatus, 'foto interna');
+
+  // Botón 📅 junto a cada campo de fecha: abre el date picker nativo del navegador (para no
+  // perder esa comodidad al pasar de input type=date a texto) pero el valor elegido se vuelca
+  // siempre en dd/mm/aaaa al campo de texto, que sigue siendo el que se lee/valida al guardar.
+  panel.querySelectorAll('.tablero-form-date-btn').forEach((btn) => {
+    const key = btn.dataset.for;
+    const picker = panel.querySelector(`.tablero-form-date-picker[data-for="${CSS.escape(key)}"]`);
+    const textInput = panel.querySelector(`input[name="${CSS.escape(key)}"]`);
+    btn.addEventListener('click', () => {
+      const iso = displayDateToIso(textInput.value.trim());
+      if (iso) picker.value = iso;
+      picker.showPicker ? picker.showPicker() : picker.focus();
+    });
+    picker.addEventListener('change', () => {
+      textInput.value = toDisplayDate(picker.value);
+    });
+  });
 
   function showError(message) {
     errorBox.textContent = message;
