@@ -115,6 +115,14 @@ function buildTableroMarker(row, def, isEditable) {
   return marker;
 }
 
+// Leaflet ubica el tooltip "center" en layer.getCenter(), el centroide geométrico real del
+// polígono. La Zona 2 tiene forma de "L" (un brazo baja y otro se extiende a la derecha) y ese
+// centroide cae justo sobre el borde angosto que une ambos brazos, no dentro del brazo derecho.
+// Se fuerza acá un punto elegido a mano, centrado en la parte derecha del polígono.
+const LABEL_ANCHOR_OVERRIDES = {
+  'Zona 2': [-32.95844, -60.66372],
+};
+
 async function loadPolygonLayer(def) {
   const res = await fetch(def.file);
   if (!res.ok) throw new Error(`No se pudo cargar ${def.file}`);
@@ -131,9 +139,12 @@ async function loadPolygonLayer(def) {
       // ralentiza mucho la interfaz en dispositivos menos potentes.
       if (isMobileDevice()) return;
       const name = feature.properties?.name;
+      if (!name) return;
+      const anchor = LABEL_ANCHOR_OVERRIDES[name];
+      if (anchor) layer.getCenter = () => L.latLng(anchor);
       // Permanent (no sólo al pasar el mouse): muestra el número de zona/subzona/sector
       // siempre que esa capa esté prendida.
-      if (name) layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'polygon-label' });
+      layer.bindTooltip(name, { permanent: true, direction: 'center', className: 'polygon-label' });
     },
   });
 }
