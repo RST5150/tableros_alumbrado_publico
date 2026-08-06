@@ -39,7 +39,9 @@ function isTelegestionTrue(row) {
   return value === 'TRUE' || value === 'SI' || value === 'SÍ' || value === '1';
 }
 
-function pointPopupHtml(row, editable) {
+// `access` es 'edit' (formulario completo), 'inspect' (solo Última Inspección + fotos, ver
+// Capas_inspeccion en Roles) o null (sin botón).
+function pointPopupHtml(row, access) {
   const inspeccionado = toDisplayDate(row['Última Inspección']);
   const telegestionado = isTelegestionTrue(row);
   const dir = direccion(row);
@@ -68,7 +70,13 @@ function pointPopupHtml(row, editable) {
       <dl>
         ${extraRows.map(([label, value]) => `<dt>${label}</dt><dd>${value}</dd>`).join('')}
       </dl>
-      ${editable ? '<button type="button" class="edit-tablero-btn">Editar</button>' : ''}
+      ${
+        access === 'edit'
+          ? '<button type="button" class="edit-tablero-btn" data-mode="edit">Editar</button>'
+          : access === 'inspect'
+          ? '<button type="button" class="edit-tablero-btn" data-mode="inspect">Registrar inspección</button>'
+          : ''
+      }
     </div>
   `;
 }
@@ -88,7 +96,7 @@ function tableroIcon(def) {
 
 // Reutilizable tanto al cargar el CSV inicial como al reflejar en el mapa un guardado hecho
 // desde el formulario (ver forms.js / upsertTablero más abajo).
-function buildTableroMarker(row, def, isEditable) {
+function buildTableroMarker(row, def, getAccess) {
   const latlng = [parseFloat(row.Lat), parseFloat(row.Lon)];
   const marker = def.icon
     ? L.marker(latlng, { pane: 'tableros', icon: tableroIcon(def) })
@@ -102,7 +110,7 @@ function buildTableroMarker(row, def, isEditable) {
       });
   // Función (no string fija): así el popup se recalcula cada vez que se abre y refleja el
   // permiso de edición vigente en ese momento, aunque haya cambiado desde que se cargó la capa.
-  marker.bindPopup(() => pointPopupHtml(marker.tableroRow, isEditable(def.id)));
+  marker.bindPopup(() => pointPopupHtml(marker.tableroRow, getAccess(def.id)));
   // Empieza cerrado: se abre solo por encima de cierto zoom (ver applyTableroLabelsVisibility),
   // si no con ~2200 tableros el mapa quedaría ilegible de entrada. En mobile ni se bindea:
   // con ~2200 tooltips (aunque cerrados) el dispositivo se ralentiza mucho.
@@ -150,7 +158,7 @@ async function loadPolygonLayer(def) {
   });
 }
 
-async function loadPointLayer(def, isEditable) {
+async function loadPointLayer(def, getAccess) {
   const res = await fetch(def.url);
   if (!res.ok) throw new Error(`No se pudo cargar ${def.url}`);
   const text = await res.text();
@@ -159,7 +167,7 @@ async function loadPointLayer(def, isEditable) {
   const markers = [];
   for (const row of data) {
     if (Number.isNaN(parseFloat(row.Lat)) || Number.isNaN(parseFloat(row.Lon))) continue;
-    markers.push(buildTableroMarker(row, def, isEditable));
+    markers.push(buildTableroMarker(row, def, getAccess));
   }
   const layer = L.layerGroup(markers);
   // Lista completa de marcadores del layerGroup, independiente de cuáles estén agregados al
@@ -260,7 +268,8 @@ function initGeolocation(map) {
 // Crea el mapa, carga todas las capas definidas en CONFIG y arma el control de capas
 // mostrando solo las que están en `allowedIds`. Devuelve una función para refrescar
 // la visibilidad cuando cambian los permisos (login/logout).
-// `onEditRequest(def, row, marker)` se llama al apretar "Editar" en el popup de un tablero.
+// `onEditRequest(def, row, marker, mode)` se llama al apretar el botón del popup de un
+// tablero, con mode 'edit' o 'inspect' según qué botón se haya mostrado (ver pointPopupHtml).
 export async function buildMap(allowedIds, onEditRequest) {
   const map = L.map('map').setView(CONFIG.mapCenter, CONFIG.mapZoom);
   const prefs = loadPrefs();
@@ -393,19 +402,23 @@ export async function buildMap(allowedIds, onEditRequest) {
     savePrefs(prefs);
   });
 
-  // Zonas de tableros que el usuario actual puede editar (independiente de cuáles ve). Se
-  // define antes de cargar las capas porque cada popup de tablero la consulta en el momento
-  // de abrirse (ver buildTableroMarker).
+  // Zonas de tableros que el usuario actual puede editar o inspeccionar (independiente de
+  // cuáles ve). "Editar" (Capas_editables) da el formulario completo; "Inspeccionar"
+  // (Capas_inspeccion) solo deja tocar Última Inspección y las fotos. Se definen antes de
+  // cargar las capas porque cada popup de tablero las consulta en el momento de abrirse (ver
+  // buildTableroMarker).
   let editableZonaIds = new Set();
-  const isEditable = (id) => editableZonaIds.has(id);
+  let inspectableZonaIds = new Set();
+  const getAccess = (id) => (editableZonaIds.has(id) ? 'edit' : inspectableZonaIds.has(id) ? 'inspect' : null);
 
-  // El botón "Editar" del popup (si está, ver pointPopupHtml) dispara onEditRequest con el
-  // tablero que corresponde al marcador que abrió ese popup.
+  // El botón del popup (si está, ver pointPopupHtml) dispara onEditRequest con el tablero que
+  // corresponde al marcador que abrió ese popup y el modo ('edit' o 'inspect') según qué botón
+  // se haya mostrado.
   map.on('popupopen', (e) => {
     const marker = e.popup._source;
     const btn = e.popup.getElement()?.querySelector('.edit-tablero-btn');
     if (btn && marker?.tableroRow) {
-      btn.onclick = () => onEditRequest?.(marker.tableroDef, marker.tableroRow, marker);
+      btn.onclick = () => onEditRequest?.(marker.tableroDef, marker.tableroRow, marker, btn.dataset.mode);
     }
   });
 
@@ -417,7 +430,7 @@ export async function buildMap(allowedIds, onEditRequest) {
   const entries = await Promise.all(
     allDefs.map(async (def) => {
       try {
-        const layer = def.kind === 'polygon' ? await loadPolygonLayer(def) : await loadPointLayer(def, isEditable);
+        const layer = def.kind === 'polygon' ? await loadPolygonLayer(def) : await loadPointLayer(def, getAccess);
         return { def, layer };
       } catch (err) {
         console.error(`Error cargando capa "${def.id}":`, err);
@@ -636,10 +649,15 @@ export async function buildMap(allowedIds, onEditRequest) {
   }
 
   // Llamado desde main.js cada vez que cambia el login: actualiza qué zonas puede
-  // crear/editar el usuario actual (los popups ya abiertos no cambian, pero cualquiera que se
-  // abra después consulta este set en el momento, ver buildTableroMarker).
+  // crear/editar (o solo inspeccionar) el usuario actual (los popups ya abiertos no cambian,
+  // pero cualquiera que se abra después consulta estos sets en el momento, ver
+  // buildTableroMarker).
   function setEditableZonaIds(ids) {
     editableZonaIds = ids;
+  }
+
+  function setInspectableZonaIds(ids) {
+    inspectableZonaIds = ids;
   }
 
   // Refleja en el mapa, al instante, un tablero recién creado/editado desde el formulario
@@ -656,12 +674,12 @@ export async function buildMap(allowedIds, onEditRequest) {
       const [oldMarker] = markers.splice(idx, 1);
       if (entry.layer.hasLayer(oldMarker)) entry.layer.removeLayer(oldMarker);
     }
-    const newMarker = buildTableroMarker(row, def, isEditable);
+    const newMarker = buildTableroMarker(row, def, getAccess);
     markers.push(newMarker);
     if (matchesTelegestionFilter(row)) newMarker.addTo(entry.layer);
     applyTableroLabelsVisibility();
   }
 
   applyVisibility(allowedIds);
-  return { map, applyVisibility, getSearchableTableros, setEditableZonaIds, upsertTablero };
+  return { map, applyVisibility, getSearchableTableros, setEditableZonaIds, setInspectableZonaIds, upsertTablero };
 }

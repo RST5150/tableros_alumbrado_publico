@@ -113,17 +113,17 @@ function buildPanel() {
     <form class="tablero-form-body">
       <div class="tablero-form-error" hidden></div>
 
-      <label class="tablero-form-zona-field">
+      <label class="tablero-form-zona-field tablero-form-full-only">
         Zona
         <input type="text" class="tablero-form-zona-display" disabled />
       </label>
 
-      <label>
+      <label class="tablero-form-full-only">
         Código (Nombre)
         <input type="text" name="Nombre" required />
       </label>
 
-      <div class="tablero-form-latlon">
+      <div class="tablero-form-latlon tablero-form-full-only">
         <label>
           Latitud
           <input type="text" name="Lat" inputmode="decimal" required />
@@ -133,13 +133,13 @@ function buildPanel() {
           <input type="text" name="Lon" inputmode="decimal" required />
         </label>
       </div>
-      <button type="button" class="tablero-form-pick">Elegir ubicación en el mapa</button>
+      <button type="button" class="tablero-form-pick tablero-form-full-only">Elegir ubicación en el mapa</button>
 
-      <label>
+      <label class="tablero-form-full-only">
         Plano
         <input type="text" name="Plano" placeholder="Link (o subí un archivo abajo)" />
       </label>
-      <div class="tablero-form-plano-upload">
+      <div class="tablero-form-plano-upload tablero-form-full-only">
         <label class="tablero-form-file-label">
           Subir plano nuevo (PDF, máx. 8 MB, el archivo se tiene que llamar como el código del
           tablero — ej. "16309.pdf")
@@ -175,7 +175,7 @@ function buildPanel() {
       ${FIELDS.map((f) =>
         f.type === 'checkbox'
           ? `
-        <label class="tablero-form-checkbox">
+        <label class="tablero-form-checkbox tablero-form-full-only">
           <input type="checkbox" name="${f.key}" />
           ${f.label}
         </label>
@@ -192,7 +192,7 @@ function buildPanel() {
         </label>
       `
           : `
-        <label>
+        <label class="tablero-form-full-only">
           ${f.label}
           <input type="text" name="${f.key}" />
         </label>
@@ -211,6 +211,7 @@ function buildPanel() {
 export function initForms({ map, upsertTablero }) {
   let user = null;
   let editableZonaIds = new Set();
+  let inspectableZonaIds = new Set();
   let mode = 'create';
   let editingDef = null;
 
@@ -363,6 +364,11 @@ export function initForms({ map, upsertTablero }) {
     planoStatus.textContent = '';
     fotoExtStatus.textContent = '';
     fotoIntStatus.textContent = '';
+    // Modo inspección (ver Capas_inspeccion en Roles): solo puede tocar Última Inspección y
+    // las fotos, así que el resto de los campos (incluidos en tablero-form-full-only) se
+    // ocultan — no alcanza con no mandarlos: si se ven mientras la restricción real vive en
+    // Code.gs, un inspector podría creer que los está editando aunque el guardado los ignore.
+    panel.classList.toggle('inspect-mode', mode === 'inspect');
 
     if (mode === 'create') {
       title.textContent = 'Nuevo tablero';
@@ -370,7 +376,7 @@ export function initForms({ map, upsertTablero }) {
       nombreInput.disabled = false;
       updateZonaDisplay();
     } else {
-      title.textContent = `Editar tablero ${opts.row.Nombre}`;
+      title.textContent = mode === 'inspect' ? `Inspección — Tablero ${opts.row.Nombre}` : `Editar tablero ${opts.row.Nombre}`;
       zonaField.hidden = true;
       nombreInput.value = opts.row.Nombre || '';
       nombreInput.disabled = true;
@@ -399,9 +405,14 @@ export function initForms({ map, upsertTablero }) {
     openForm({ mode: 'create' });
   }
 
-  function openEditForm(def, row) {
-    if (!editableZonaIds.has(def.id)) return;
-    openForm({ mode: 'edit', def, row });
+  function openEditForm(def, row, marker, accessMode) {
+    if (accessMode === 'inspect') {
+      if (!inspectableZonaIds.has(def.id) && !editableZonaIds.has(def.id)) return;
+      openForm({ mode: 'inspect', def, row });
+    } else {
+      if (!editableZonaIds.has(def.id)) return;
+      openForm({ mode: 'edit', def, row });
+    }
   }
 
   // El script arma el nombre final (código + _ext/_int) solo, a partir de zona/nombre/tipo —
@@ -456,6 +467,10 @@ export function initForms({ map, upsertTablero }) {
       showError(`No tenés permiso para crear tableros en la ${def.label}.`);
       return;
     }
+    if (mode === 'inspect' && !inspectableZonaIds.has(def.id) && !editableZonaIds.has(def.id)) {
+      showError(`No tenés permiso para registrar inspecciones en la ${def.label}.`);
+      return;
+    }
     if (!isValidCoordinate(data.Lat) || !isValidCoordinate(data.Lon)) {
       showError('Latitud/longitud inválidas — usá punto como separador decimal (ej. "-32.907190"), no coma.');
       return;
@@ -508,9 +523,12 @@ export function initForms({ map, upsertTablero }) {
       }
 
       saveBtn.textContent = 'Guardando…';
-      // Code.gs espera 'create'/'update' (createRow/updateRow); acá el modo interno es
-      // 'create'/'edit' — se traduce acá en vez de renombrar el estado interno.
-      const action = mode === 'edit' ? 'update' : mode;
+      // Code.gs espera 'create'/'update'/'inspect' (createRow/updateRow/inspectRow); acá el modo
+      // interno es 'create'/'edit'/'inspect' — se traduce acá en vez de renombrar el estado
+      // interno. 'inspect' pega a una acción separada en el backend que solo puede tocar
+      // Última Inspección/fotos, aunque `data` (por cómo se arma arriba) venga con la fila
+      // completa: la restricción real de qué columnas se graban vive del lado del servidor.
+      const action = mode === 'edit' ? 'update' : mode === 'inspect' ? 'inspect' : mode;
       const json = await postToScript({ idToken: user.token, action, zona: zonaId, data }, timeoutMs);
       if (!json.ok) throw new Error(json.error || 'No se pudo guardar.');
       upsertTablero(def, data);
@@ -545,9 +563,10 @@ export function initForms({ map, upsertTablero }) {
   updateAddButtonVisibility();
 
   // Llamado desde main.js cada vez que cambia el login.
-  function setAuthState(newUser, newEditableZonaIds) {
+  function setAuthState(newUser, newEditableZonaIds, newInspectableZonaIds) {
     user = newUser;
     editableZonaIds = newEditableZonaIds;
+    inspectableZonaIds = newInspectableZonaIds || new Set();
     updateAddButtonVisibility();
   }
 

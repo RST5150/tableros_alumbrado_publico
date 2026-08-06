@@ -69,11 +69,13 @@ async function fetchRoles() {
   for (const row of data) {
     const email = (row.Email || '').trim().toLowerCase();
     if (!email) continue;
-    // "Ver" y "editar" son permisos separados: alguien puede ver los tableros de una zona
-    // sin poder tocarlos. Capas_editables es independiente de Capas_permitidas.
+    // "Ver", "editar" e "inspeccionar" son permisos separados: alguien puede ver los tableros
+    // de una zona sin poder tocarlos, o solo poder cargar Última Inspección y fotos sin acceso
+    // al resto de los campos (ver Capas_inspeccion). Cada columna es independiente del resto.
     roles.set(email, {
       view: parseCapas(row.Capas_permitidas),
       edit: parseCapas(row.Capas_editables),
+      inspect: parseCapas(row.Capas_inspeccion),
     });
   }
   return roles;
@@ -98,9 +100,16 @@ export function editableLayerIds(user, roles) {
   return resolveGrant(user, roles, 'edit');
 }
 
+// Zonas donde el usuario solo puede registrar Última Inspección y fotos (formulario reducido,
+// ver src/forms.js). Independiente de editableLayerIds — alguien con edición completa no
+// necesita esto además, ya puede tocar esos mismos campos desde el formulario completo.
+export function inspectableLayerIds(user, roles) {
+  return resolveGrant(user, roles, 'inspect');
+}
+
 function hasGrant(entry) {
   if (!entry) return false;
-  return ['view', 'edit'].some((k) => entry[k] === '*' || entry[k]?.length > 0);
+  return ['view', 'edit', 'inspect'].some((k) => entry[k] === '*' || entry[k]?.length > 0);
 }
 
 // true si el usuario inició sesión pero no tiene ninguna fila (o ninguna capa) asignada en

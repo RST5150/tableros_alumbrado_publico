@@ -36,11 +36,18 @@ function doPost(e) {
       return jsonResponse({ ok: true, notified: notifyNoAccess(email, body.nombre) });
     }
 
-    if (!getEditableZonas(email).has(body.zona)) {
+    // Capas_editables da acceso completo (alta/edición de cualquier campo); Capas_inspeccion
+    // (independiente) solo deja registrar Última Inspección y fotos vía la acción 'inspect' más
+    // abajo — la restricción de QUÉ columnas puede tocar cada una vive acá, no en el cliente,
+    // porque el formulario reducido de inspección igual manda la fila completa (ver forms.js).
+    var canEdit = getEditableZonas(email).has(body.zona);
+    var canInspect = getInspectableZonas(email).has(body.zona);
+    if (!canEdit && !canInspect) {
       return jsonResponse({ ok: false, error: 'No tenés permiso para editar tableros de esa zona.' });
     }
 
     if (body.action === 'uploadFile') {
+      if (!canEdit) return jsonResponse({ ok: false, error: 'No tenés permiso para subir planos.' });
       return jsonResponse({ ok: true, url: uploadPlano(body) });
     }
     if (body.action === 'uploadFoto') {
@@ -49,6 +56,16 @@ function doPost(e) {
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.zona);
     if (!sheet) return jsonResponse({ ok: false, error: 'No existe la hoja "' + body.zona + '".' });
+
+    if (body.action === 'inspect') {
+      var cambiosInsp = inspectRow(sheet, body.data);
+      logHistorial(email, body.zona, body.data.Nombre, 'Inspección', cambiosInsp);
+      return jsonResponse({ ok: true });
+    }
+
+    if (!canEdit) {
+      return jsonResponse({ ok: false, error: 'No tenés permiso para editar tableros de esa zona.' });
+    }
 
     if (body.action === 'create' || body.action === 'update') {
       assertValidCoordinate(body.data.Lat, 'Latitud');
@@ -267,18 +284,20 @@ function verifyIdToken(idToken) {
   return info.email.toLowerCase();
 }
 
-// Misma lógica que editableLayerIds() en src/auth.js, pero leyendo la columna
-// "Capas_editables" (no "Capas_permitidas", que es solo para ver el mapa).
-function getEditableZonas(email) {
+// Misma lógica que editableLayerIds()/inspectableLayerIds() en src/auth.js: lee una columna de
+// la hoja Roles (ids de zona separados por coma, o "*" para todas) y devuelve el set de zonas
+// habilitadas para ese email en esa columna.
+function getZonasFromRolesColumn(email, columnName) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Roles');
   var rows = sheet.getDataRange().getValues();
   var header = rows[0];
   var emailIdx = header.indexOf('Email');
-  var editIdx = header.indexOf('Capas_editables');
+  var colIdx = header.indexOf(columnName);
+  if (colIdx === -1) return { has: function () { return false; } };
 
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][emailIdx]).trim().toLowerCase() === email) {
-      var capas = String(rows[i][editIdx] || '').trim();
+      var capas = String(rows[i][colIdx] || '').trim();
       if (capas === '*') return { has: function () { return true; } };
       var set = {};
       capas.split(',').forEach(function (c) {
@@ -289,6 +308,17 @@ function getEditableZonas(email) {
     }
   }
   return { has: function () { return false; } };
+}
+
+// Acceso completo: alta y edición de cualquier campo.
+function getEditableZonas(email) {
+  return getZonasFromRolesColumn(email, 'Capas_editables');
+}
+
+// Acceso restringido: solo puede registrar Última Inspección y fotos (ver inspectRow), en
+// tableros que ya existen. Columna independiente de Capas_editables.
+function getInspectableZonas(email) {
+  return getZonasFromRolesColumn(email, 'Capas_inspeccion');
 }
 
 // Lat/Lon se escriben forzando formato de texto plano ("@") en esas dos celdas antes de
@@ -335,6 +365,33 @@ function updateRow(sheet, data) {
       writeTableroRow(sheet, i + 1, data);
       return diffRows(oldRow, newRow);
     }
+  }
+  throw new Error('No se encontró ningún tablero con el código "' + data.Nombre + '" en esta zona.');
+}
+
+// Columnas que puede tocar un usuario con permiso de inspección (Capas_inspeccion), no edición
+// completa — ver forms.js (modo 'inspect'). A diferencia de updateRow (que reescribe la fila
+// entera a partir de `data`), acá se actualiza celda por celda SOLO estas columnas: aunque
+// `data` venga con la fila completa (el formulario reducido igual manda todos los campos, sin
+// tocarlos), el resto de los valores existentes queda intacto pase lo que pase en `data`.
+var INSPECTABLE_COLUMNS = ['Última Inspección', 'Foto Externa', 'Foto Interna'];
+
+function inspectRow(sheet, data) {
+  var nombreIdx = COLUMNS.indexOf('Nombre');
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][nombreIdx]).trim() !== String(data.Nombre).trim()) continue;
+
+    var changes = [];
+    INSPECTABLE_COLUMNS.forEach(function (col) {
+      var colIdx = COLUMNS.indexOf(col);
+      var before = String(values[i][colIdx] || '').trim();
+      var after = String(data[col] || '').trim();
+      if (before === after) return;
+      changes.push(col + ': "' + before + '" -> "' + after + '"');
+      sheet.getRange(i + 1, colIdx + 1).setValue(data[col] || '');
+    });
+    return changes.length ? changes.join('; ') : '(sin cambios)';
   }
   throw new Error('No se encontró ningún tablero con el código "' + data.Nombre + '" en esta zona.');
 }

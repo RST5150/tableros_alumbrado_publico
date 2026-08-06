@@ -457,6 +457,12 @@ body {
   transform: translateX(0);
 }
 
+/* Modo inspección (permiso restringido, ver Capas_inspeccion): solo se ven Última Inspección
+   y las fotos — el resto de los campos del formulario completo queda oculto. */
+.tablero-form-panel.inspect-mode .tablero-form-full-only {
+  display: none;
+}
+
 /* En pantallas angostas (celular), un panel lateral de 340px tapa casi todo el mapa y no deja
    lugar para "Elegir ubicación en el mapa". Pasa a ser una hoja inferior que deja libre la
    parte de arriba. */

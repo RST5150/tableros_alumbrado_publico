@@ -70,19 +70,24 @@ nuevo (por cambios en el mapa):
 3. Ojo con **Zona 3**: unos ~4 nombres de calle con "Ñ" quedaron corrompidos en la conversión
    (ej. "MU�OZ", "ORDO�EZ") por un problema de codificación en ese KMZ puntual. Buscalos y
    corregilos a mano en la planilla (Ctrl+F por "�").
-4. Creá una hoja `Roles` con columnas `Email`, `Capas_permitidas` y `Capas_editables`, por
-   ejemplo:
+4. Creá una hoja `Roles` con columnas `Email`, `Capas_permitidas`, `Capas_editables` y
+   `Capas_inspeccion`, por ejemplo:
 
-   | Email | Capas_permitidas | Capas_editables |
-   |---|---|---|
-   | supervisor.zona1@tuempresa.com | tableros_zona1 | tableros_zona1 |
-   | inspector.zona1@tuempresa.com | tableros_zona1 | |
-   | jefe.fiscalizacion@tuempresa.com | * | * |
+   | Email | Capas_permitidas | Capas_editables | Capas_inspeccion |
+   |---|---|---|---|
+   | supervisor.zona1@tuempresa.com | tableros_zona1 | tableros_zona1 | |
+   | inspector.zona1@tuempresa.com | tableros_zona1 | | tableros_zona1 |
+   | jefe.fiscalizacion@tuempresa.com | * | * | |
 
    `Capas_permitidas` controla qué ve cada quien en el mapa; `Capas_editables` (independiente)
-   controla quién puede crear/editar tableros desde el formulario — se puede ver una zona sin
-   poder tocarla (fila del medio: la ve pero no la edita). En ambas, `*` = todas; si no, listar
-   los ids separados por coma.
+   controla quién puede crear/editar tableros desde el formulario completo — se puede ver una
+   zona sin poder tocarla (fila del medio: la ve pero no la edita del todo). `Capas_inspeccion`
+   (también independiente) da un formulario reducido, solo para cargar Última Inspección y
+   fotos en tableros ya existentes — pensado para quien sale a inspeccionar en la calle y no
+   debería poder tocar el resto de los datos del tablero. En las tres, `*` = todas; si no,
+   listar los ids separados por coma. Ojo: para que alguien con solo `Capas_inspeccion` pueda
+   inspeccionar una zona, esa zona tiene que estar también en su `Capas_permitidas` (si no, ni
+   siquiera ve los tableros en el mapa para poder abrirlos).
 5. Por cada hoja (`tableros_zona1`, `tableros_zona2`, `tableros_zona3`, `Roles`): **Archivo →
    Compartir → Publicar en la web** → elegí esa hoja específica → formato **CSV** → Publicar.
    Copiá la URL que te da.
@@ -120,7 +125,10 @@ Permite agregar/editar tableros desde la propia web (botón "+ Agregar tablero" 
 cada popup), sin tocar el Sheet a mano. Como el sitio sigue siendo estático, quien "escribe" en
 la planilla es un **Google Apps Script** gratuito vinculado al mismo Sheet — no hace falta
 darle acceso de Editor a cada persona: el script valida la identidad (contra Google) y el
-permiso (contra la hoja Roles, columna `Capas_editables`) antes de guardar nada.
+permiso (contra la hoja Roles, columnas `Capas_editables` y `Capas_inspeccion`) antes de guardar
+nada. Esto último es clave: la restricción de qué campos puede tocar un perfil de inspección
+vive en el propio `Code.gs` (no solo se ocultan campos en la web), así que no alcanza con
+pegarle directo a la URL del script para saltearla.
 
 1. Abrí el Google Sheet maestro → **Extensiones → Apps Script**.
 2. Borrá el contenido de `Code.gs` que viene por defecto y pegá el de
@@ -133,8 +141,9 @@ permiso (contra la hoja Roles, columna `Capas_editables`) antes de guardar nada.
    - Implementar → autorizá los permisos que pida (acceso a la planilla y a internet, para
      validar el token contra Google) → copiá la **URL de la aplicación web**.
 5. Pegá esa URL en `src/config.js` (`appsScriptUrl`).
-6. Completá la columna `Capas_editables` en la hoja Roles para cada persona que deba poder
-   editar (ver paso 2).
+6. Completá las columnas `Capas_editables` (formulario completo) y/o `Capas_inspeccion`
+   (formulario reducido, solo Última Inspección y fotos) en la hoja Roles para cada persona que
+   corresponda (ver paso 2).
 
 Cada vez que cambies el código de `Code.gs`, hay que volver a **Implementar → Gestionar
 implementaciones → editar (lápiz) → Nueva versión** para que el cambio tenga efecto (la URL no
@@ -229,4 +238,8 @@ Editá la hoja "Roles" del Google Sheet: una fila por persona.
   por defecto (ver `publicLayerIds` en `src/config.js`) — se puede cambiar eso si en algún
   momento también se quieren restringir.
 - `Capas_editables`: cuáles de las capas de tableros puede crear/editar desde el formulario
-  (independiente de lo anterior — ver paso 5). Los polígonos no son editables desde la web.
+  completo (independiente de lo anterior — ver paso 5). Los polígonos no son editables desde la web.
+- `Capas_inspeccion`: cuáles de las capas de tableros puede tocar desde el formulario reducido
+  (solo Última Inspección y fotos, en tableros ya existentes — no puede crear ni editar el
+  resto de los campos). Independiente de `Capas_editables`; alguien con edición completa no
+  necesita esto además.
