@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { CONFIG } from './config.js';
+import { toDisplayDate, displayDateToIso } from './dateUtils.js';
 
 // Columnas reales del Sheet (además de Nombre/Lat/Lon, Plano y las Fotos, que se tratan
 // aparte). Las claves tienen que coincidir exactamente con los encabezados de tableros_zona*.
@@ -179,10 +180,17 @@ function buildPanel() {
           ${f.label}
         </label>
       `
+          : f.type === 'date'
+          ? `
+        <label>
+          ${f.label}
+          <input type="text" name="${f.key}" placeholder="dd/mm/aaaa" inputmode="numeric" />
+        </label>
+      `
           : `
         <label>
           ${f.label}
-          <input type="${f.type || 'text'}" name="${f.key}" />
+          <input type="text" name="${f.key}" />
         </label>
       `
       ).join('')}
@@ -355,6 +363,8 @@ export function initForms({ map, upsertTablero }) {
         if (!input) continue;
         if (f.type === 'checkbox') {
           input.checked = /^(TRUE|SI|SÍ|1)$/i.test((opts.row[f.key] || '').trim());
+        } else if (f.type === 'date') {
+          input.value = toDisplayDate(opts.row[f.key]);
         } else {
           input.value = opts.row[f.key] || '';
         }
@@ -402,6 +412,15 @@ export function initForms({ map, upsertTablero }) {
     for (const f of FIELDS) {
       const input = form.querySelector(`[name="${CSS.escape(f.key)}"]`);
       data[f.key] = f.type === 'checkbox' ? (input.checked ? 'TRUE' : 'FALSE') : input.value.trim();
+    }
+
+    if (data['Última Inspección']) {
+      const iso = displayDateToIso(data['Última Inspección']);
+      if (!iso) {
+        showError('La fecha de última inspección tiene que tener el formato dd/mm/aaaa.');
+        return;
+      }
+      data['Última Inspección'] = iso;
     }
 
     if (!data.Nombre || !data.Lat || !data.Lon) {
