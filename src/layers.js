@@ -471,7 +471,7 @@ export async function buildMap(allowedIds, onEditRequest) {
   // Números de tablero: solo se muestran a partir de cierto zoom (con el mapa alejado, ~2200
   // etiquetas superpuestas serían ilegibles), y solo si "Mostrar referencias" está tildado
   // (ver labelsVisible más abajo). Se recalcula al hacer zoom.
-  const TABLERO_LABEL_MIN_ZOOM = 18;
+  const TABLERO_LABEL_MIN_ZOOM = 17;
   function applyTableroLabelsVisibility() {
     const show = labelsVisible && map.getZoom() >= TABLERO_LABEL_MIN_ZOOM;
     for (const { def, layer } of loaded) {
@@ -479,17 +479,30 @@ export async function buildMap(allowedIds, onEditRequest) {
       layer.eachLayer((marker) => (show ? marker.openTooltip() : marker.closeTooltip()));
     }
   }
-  map.on('zoomend', applyTableroLabelsVisibility);
+  // 'moveend' (no solo 'zoomend'): con zoom por rueda del mouse, mientras la animación de zoom
+  // está en curso (map._animatingZoom) Leaflet puede pisar los open/closeTooltip que se llamen
+  // en ese lapso al resetear las panes; recién con la animación terminada el estado queda firme.
+  // 'moveend' se dispara siempre después de que termina, así que sirve de red de seguridad.
+  map.on('zoomend moveend', applyTableroLabelsVisibility);
+
+  // Referencias de zonas/subzonas/sectores: cada una aparece a partir de su propio zoom mínimo
+  // (zonas no tiene piso, son pocas y se leen bien alejado; subzonas y sectores son más chicos
+  // y numerosos, así que se muestran más cerca para no amontonarse). Se recalcula al hacer zoom.
+  const POLYGON_LABEL_MIN_ZOOM = { subzonas: 10, sectores: 15 };
 
   // Toggle de "Mostrar referencias": abre/cierra el tooltip permanente de cada polígono sin
   // afectar si la capa en sí está prendida o apagada.
   let labelsVisible = prefs.labelsVisible !== false;
   function applyLabelsVisibility() {
+    const zoom = map.getZoom();
     for (const { def, layer } of loaded) {
       if (def.kind !== 'polygon') continue;
-      layer.eachLayer((sub) => (labelsVisible ? sub.openTooltip() : sub.closeTooltip()));
+      const minZoom = POLYGON_LABEL_MIN_ZOOM[def.id] ?? 0;
+      const show = labelsVisible && zoom >= minZoom;
+      layer.eachLayer((sub) => (show ? sub.openTooltip() : sub.closeTooltip()));
     }
   }
+  map.on('zoomend moveend', applyLabelsVisibility);
 
   const LabelsToggle = L.Control.extend({
     options: { position: 'topright' },

@@ -1,5 +1,5 @@
-import './style.css';
 import 'leaflet/dist/leaflet.css';
+import './style.css';
 import { initAuth, allowedLayerIds, editableLayerIds, hasNoPermissions, notifyNoAccess } from './auth.js';
 import { buildMap } from './layers.js';
 import { initSearch } from './search.js';
