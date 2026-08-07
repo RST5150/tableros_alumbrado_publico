@@ -165,8 +165,12 @@ planilla.
 **Subir fotos externa/interna desde el formulario**: mismo selector de archivo, pero a
 diferencia del plano el archivo se puede subir tal cual sale del celular — no hace falta
 renombrarlo, el script arma el nombre final (código de tablero + `_ext` o `_int`) solo, a
-partir de qué tablero se está editando. Estas fotos van a **Cloudinary** (no a Drive), que es
-donde ya se venían guardando:
+partir de qué tablero se está editando. Antes de subirla, el navegador la comprime sola (la
+redimensiona a un máximo de 1600 px de lado y la recodifica como JPEG, ver
+`src/imageUtils.js`) — así entran sin problema fotos de celular de varios MB aunque el límite
+final de subida sean 8 MB. Si el navegador no puede comprimir un formato puntual, sube el
+archivo original tal cual (sin bloquear la carga). Estas fotos van a **Cloudinary** (no a
+Drive), que es donde ya se venían guardando:
 
 1. En [cloudinary.com](https://cloudinary.com) → Dashboard, copiá tu **Cloud name** y **API
    Key** (ya están cargados en `Code.gs`: `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` — si

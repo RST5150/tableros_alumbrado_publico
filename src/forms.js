@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import { CONFIG } from './config.js';
 import { toDisplayDate, displayDateToIso } from './dateUtils.js';
+import { compressImage } from './imageUtils.js';
 
 // Columnas reales del Sheet (además de Nombre/Lat/Lon, Plano y las Fotos, que se tratan
 // aparte). Las claves tienen que coincidir exactamente con los encabezados de tableros_zona*.
@@ -18,6 +19,11 @@ const FIELDS = [
 ];
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+// Límite del archivo original de una foto, antes de comprimir (ver imageUtils.js). Mucho más
+// alto que MAX_UPLOAD_BYTES porque una foto de celular sin comprimir entra sin problema acá —
+// es solo para no dejar que el navegador intente procesar algo absurdamente pesado.
+const MAX_ORIGINAL_IMAGE_BYTES = 25 * 1024 * 1024;
 
 // Mismo límite que ya usa scripts/shp-convert.mjs / Code.gs: el número real de sectores que
 // tiene cada zona (Zona1 hasta 69, Zona2 hasta 53, Zona3 hasta 52). Si cambian los sectores,
@@ -154,7 +160,7 @@ function buildPanel() {
       </label>
       <div class="tablero-form-plano-upload">
         <label class="tablero-form-file-label">
-          Subir foto nueva (imagen, máx. 8 MB — se puede subir tal cual sale del celular)
+          Subir foto nueva (imagen, se comprime sola antes de subir — se puede subir tal cual sale del celular)
           <input type="file" class="tablero-form-foto-ext-file" accept="image/*" />
         </label>
         <span class="tablero-form-foto-ext-status"></span>
@@ -166,7 +172,7 @@ function buildPanel() {
       </label>
       <div class="tablero-form-plano-upload">
         <label class="tablero-form-file-label">
-          Subir foto nueva (imagen, máx. 8 MB — se puede subir tal cual sale del celular)
+          Subir foto nueva (imagen, se comprime sola antes de subir — se puede subir tal cual sale del celular)
           <input type="file" class="tablero-form-foto-int-file" accept="image/*" />
         </label>
         <span class="tablero-form-foto-int-status"></span>
@@ -263,9 +269,23 @@ export function initForms({ map, upsertTablero }) {
     planoStatus.textContent = `Se va a subir "${file.name}" y va a reemplazar el link de arriba.`;
   });
 
-  function wireFotoFileInput(fileInput, statusEl, label) {
+  // `state.file` es lo que realmente se sube al guardar: el archivo comprimido si la
+  // compresión terminó a tiempo, o el original si falló/no hizo falta (ver imageUtils.js).
+  // `state.promise` se espera en el submit por si todavía está comprimiendo cuando se aprieta
+  // "Guardar". No se puede guardar esto en fileInput.files (de solo lectura para JS), por eso
+  // va aparte.
+  const fotoExtState = { file: null, promise: null };
+  const fotoIntState = { file: null, promise: null };
+
+  function resetFotoState(state) {
+    state.file = null;
+    state.promise = null;
+  }
+
+  function wireFotoFileInput(fileInput, statusEl, label, state) {
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
+      resetFotoState(state);
       if (!file) {
         statusEl.textContent = '';
         return;
@@ -275,16 +295,26 @@ export function initForms({ map, upsertTablero }) {
         fileInput.value = '';
         return;
       }
-      if (file.size > MAX_UPLOAD_BYTES) {
-        statusEl.textContent = `"${file.name}" pesa más de 8 MB, elegí otro archivo.`;
+      if (file.size > MAX_ORIGINAL_IMAGE_BYTES) {
+        statusEl.textContent = `"${file.name}" pesa más de 25 MB, elegí otro archivo.`;
         fileInput.value = '';
         return;
       }
-      statusEl.textContent = `Se va a subir "${file.name}" como ${label} y va a reemplazar el link de arriba.`;
+      statusEl.textContent = `Comprimiendo "${file.name}"…`;
+      state.promise = compressImage(file).then((compressed) => {
+        if (compressed.size > MAX_UPLOAD_BYTES) {
+          statusEl.textContent = `"${file.name}" sigue pesando más de 8 MB después de comprimir, elegí otro archivo.`;
+          fileInput.value = '';
+          state.file = null;
+          return;
+        }
+        state.file = compressed;
+        statusEl.textContent = `Se va a subir "${file.name}" como ${label} y va a reemplazar el link de arriba.`;
+      });
     });
   }
-  wireFotoFileInput(fotoExtFileInput, fotoExtStatus, 'foto externa');
-  wireFotoFileInput(fotoIntFileInput, fotoIntStatus, 'foto interna');
+  wireFotoFileInput(fotoExtFileInput, fotoExtStatus, 'foto externa', fotoExtState);
+  wireFotoFileInput(fotoIntFileInput, fotoIntStatus, 'foto interna', fotoIntState);
 
   // Botón 📅 junto a cada campo de fecha: abre el date picker nativo del navegador (para no
   // perder esa comodidad al pasar de input type=date a texto) pero el valor elegido se vuelca
@@ -364,6 +394,8 @@ export function initForms({ map, upsertTablero }) {
     planoStatus.textContent = '';
     fotoExtStatus.textContent = '';
     fotoIntStatus.textContent = '';
+    resetFotoState(fotoExtState);
+    resetFotoState(fotoIntState);
     // Modo inspección (ver Capas_inspeccion en Roles): solo puede tocar Última Inspección y
     // las fotos, así que el resto de los campos (incluidos en tablero-form-full-only) se
     // ocultan — no alcanza con no mandarlos: si se ven mientras la restricción real vive en
@@ -510,16 +542,24 @@ export function initForms({ map, upsertTablero }) {
         data.Plano = uploadJson.url;
       }
 
-      const fotoExtFile = fotoExtFileInput.files[0];
-      if (fotoExtFile) {
+      if (fotoExtFileInput.files[0]) {
+        if (fotoExtState.promise) {
+          saveBtn.textContent = 'Comprimiendo foto externa…';
+          await fotoExtState.promise;
+        }
+        if (!fotoExtState.file) throw new Error('No se pudo procesar la foto externa, elegí otra.');
         saveBtn.textContent = 'Subiendo foto externa…';
-        data['Foto Externa'] = await uploadFoto(fotoExtFile, 'ext', zonaId, data.Nombre, timeoutMs);
+        data['Foto Externa'] = await uploadFoto(fotoExtState.file, 'ext', zonaId, data.Nombre, timeoutMs);
       }
 
-      const fotoIntFile = fotoIntFileInput.files[0];
-      if (fotoIntFile) {
+      if (fotoIntFileInput.files[0]) {
+        if (fotoIntState.promise) {
+          saveBtn.textContent = 'Comprimiendo foto interna…';
+          await fotoIntState.promise;
+        }
+        if (!fotoIntState.file) throw new Error('No se pudo procesar la foto interna, elegí otra.');
         saveBtn.textContent = 'Subiendo foto interna…';
-        data['Foto Interna'] = await uploadFoto(fotoIntFile, 'int', zonaId, data.Nombre, timeoutMs);
+        data['Foto Interna'] = await uploadFoto(fotoIntState.file, 'int', zonaId, data.Nombre, timeoutMs);
       }
 
       saveBtn.textContent = 'Guardando…';
